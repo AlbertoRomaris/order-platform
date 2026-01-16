@@ -1,0 +1,4 @@
+ALTER TABLE orders
+    ADD COLUMN updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    ADD COLUMN failure_reason TEXT NULL,
+    ADD COLUMN retry_count INT NOT NULL DEFAULT 0;
