@@ -1,0 +1,46 @@
+# Versión implícita de Docker Compose
+# Define QUÉ servicios existen en este entorno
+services:
+
+  # Nombre lógico del servicio
+  postgres:
+
+    # Imagen oficial de PostgreSQL, versión 16
+    # Usar versiones explícitas evita sorpresas
+    image: postgres:16
+
+    # Nombre fijo del contenedor (útil para logs y debug)
+    container_name: order-platform-postgres
+
+    # Variables de entorno que Postgres usa al arrancar
+    environment:
+      # Nombre de la base de datos que se crea automáticamente
+      POSTGRES_DB: orderdb
+
+      # Usuario administrador de la base de datos
+      POSTGRES_USER: orderuser
+
+      # Contraseña del usuario
+      POSTGRES_PASSWORD: orderpass
+
+    # Mapeo de puertos
+    # puerto_PC:puerto_contenedor
+    ports:
+      - "5432:5432"
+
+    # Volúmenes = persistencia de datos
+    # Aunque el contenedor se borre, los datos NO se pierden
+    volumes:
+      - order_platform_pgdata:/var/lib/postgresql/data
+
+    # Healthcheck: Docker comprueba si Postgres está listo
+    # Muy importante para sistemas reales
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U orderuser -d orderdb"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+# Definición de volúmenes persistentes
+volumes:
+  order_platform_pgdata:
