@@ -1,6 +1,6 @@
 package com.orderplatform.api.application.port;
 
-import com.orderplatform.api.domain.order.Order;
+import com.orderplatform.core.domain.order.Order;
 
 import java.util.Optional;
 import java.util.UUID;

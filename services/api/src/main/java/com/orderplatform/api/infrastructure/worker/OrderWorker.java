@@ -7,7 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.beans.factory.annotation.Value;
-import com.orderplatform.api.domain.order.OrderStatus;
+import com.orderplatform.core.domain.order.OrderStatus;
 
 import jakarta.annotation.PostConstruct;
 import java.time.Instant;

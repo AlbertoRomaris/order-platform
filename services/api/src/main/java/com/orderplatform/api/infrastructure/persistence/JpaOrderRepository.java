@@ -1,8 +1,8 @@
 package com.orderplatform.api.infrastructure.persistence;
 
 import com.orderplatform.api.application.port.OrderRepository;
-import com.orderplatform.api.domain.order.Order;
-import com.orderplatform.api.domain.order.OrderStatus;
+import com.orderplatform.core.domain.order.Order;
+import com.orderplatform.core.domain.order.OrderStatus;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;

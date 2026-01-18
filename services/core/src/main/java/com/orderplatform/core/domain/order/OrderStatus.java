@@ -1,4 +1,4 @@
-package com.orderplatform.api.domain.order;
+package com.orderplatform.core.domain.order;
 
 public enum OrderStatus {
     PENDING,

@@ -1,7 +1,7 @@
 package com.orderplatform.api.application.usecase;
 
 import com.orderplatform.api.application.port.OrderRepository;
-import com.orderplatform.api.domain.order.Order;
+import com.orderplatform.core.domain.order.Order;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
