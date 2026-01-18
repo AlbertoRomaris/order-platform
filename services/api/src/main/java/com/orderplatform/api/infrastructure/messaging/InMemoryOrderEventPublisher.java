@@ -1,6 +1,6 @@
 package com.orderplatform.api.infrastructure.messaging;
 
-import com.orderplatform.api.application.port.OrderEventPublisher;
+import com.orderplatform.core.application.port.OrderEventPublisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;

@@ -1,8 +1,8 @@
 package com.orderplatform.api.application.usecase;
 
-import com.orderplatform.api.application.port.OrderDlqRepository;
-import com.orderplatform.api.application.port.OrderEventPublisher;
-import com.orderplatform.api.application.port.OrderRepository;
+import com.orderplatform.core.application.port.OrderDlqRepository;
+import com.orderplatform.core.application.port.OrderEventPublisher;
+import com.orderplatform.core.application.port.OrderRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;

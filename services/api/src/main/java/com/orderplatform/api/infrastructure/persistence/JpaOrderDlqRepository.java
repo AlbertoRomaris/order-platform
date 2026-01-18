@@ -1,8 +1,9 @@
 package com.orderplatform.api.infrastructure.persistence;
 
-import com.orderplatform.api.application.port.OrderDlqRepository;
-import org.springframework.stereotype.Repository;
+import com.orderplatform.core.application.model.OrderDlqEntry;
+import com.orderplatform.core.application.port.OrderDlqRepository;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
 import java.util.List;
@@ -30,14 +31,25 @@ public class JpaOrderDlqRepository implements OrderDlqRepository {
     }
 
     @Override
-    public List<OrderDlqEntity> findAll() {
-        return springRepo.findAll();
+    public List<OrderDlqEntry> findAll() {
+        return springRepo.findAll()
+                .stream()
+                .map(this::toEntry)
+                .toList();
     }
 
     @Override
-    public List<OrderDlqEntity> findLatest(int limit) {
+    public List<OrderDlqEntry> findLatest(int limit) {
         int safeLimit = Math.max(1, Math.min(limit, 200)); // evitamos locuras tipo 1M
-        return springRepo.findByOrderByFailedAtDesc(PageRequest.of(0, safeLimit));
+        return springRepo.findByOrderByFailedAtDesc(PageRequest.of(0, safeLimit))
+                .stream()
+                .map(this::toEntry)
+                .toList();
+    }
+
+    @Override
+    public Optional<OrderDlqEntry> findByOrderId(UUID orderId) {
+        return springRepo.findById(orderId).map(this::toEntry);
     }
 
     @Override
@@ -45,8 +57,13 @@ public class JpaOrderDlqRepository implements OrderDlqRepository {
         springRepo.deleteById(orderId);
     }
 
-    @Override
-    public Optional<OrderDlqEntity> findByOrderId(UUID orderId) {
-        return springRepo.findById(orderId);
+    private OrderDlqEntry toEntry(OrderDlqEntity e) {
+        return new OrderDlqEntry(
+                e.getOrderId(),
+                e.getReason(),
+                e.getRetryCount(),
+                e.getFailedAt()
+        );
     }
 }
+

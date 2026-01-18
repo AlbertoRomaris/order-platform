@@ -1,4 +1,4 @@
-package com.orderplatform.api.application.port;
+package com.orderplatform.core.application.port;
 
 import com.orderplatform.core.domain.order.Order;
 

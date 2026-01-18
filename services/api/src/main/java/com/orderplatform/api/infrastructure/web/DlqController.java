@@ -1,16 +1,11 @@
 package com.orderplatform.api.infrastructure.web;
 
 import com.orderplatform.api.application.usecase.ListDlqEntriesUseCase;
-import com.orderplatform.api.infrastructure.persistence.OrderDlqEntity;
-import com.orderplatform.api.infrastructure.web.dto.DlqEntryResponse;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
 import com.orderplatform.api.application.usecase.ReprocessDlqEntryUseCase;
+import com.orderplatform.api.infrastructure.web.dto.DlqEntryResponse;
+import com.orderplatform.core.application.model.OrderDlqEntry;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.UUID;
@@ -35,12 +30,12 @@ public class DlqController {
                 .toList();
     }
 
-    private DlqEntryResponse toResponse(OrderDlqEntity e) {
+    private DlqEntryResponse toResponse(OrderDlqEntry e) {
         return new DlqEntryResponse(
-                e.getOrderId(),
-                e.getReason(),
-                e.getRetryCount(),
-                e.getFailedAt()
+                e.orderId(),
+                e.reason(),
+                e.retryCount(),
+                e.failedAt()
         );
     }
 
@@ -49,5 +44,5 @@ public class DlqController {
         reprocessDlqEntryUseCase.execute(orderId);
         return ResponseEntity.accepted().build();
     }
-
 }
+

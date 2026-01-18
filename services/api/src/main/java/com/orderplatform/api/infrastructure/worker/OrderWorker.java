@@ -1,7 +1,7 @@
 package com.orderplatform.api.infrastructure.worker;
 
-import com.orderplatform.api.application.port.OrderDlqRepository;
-import com.orderplatform.api.application.port.OrderRepository;
+import com.orderplatform.core.application.port.OrderDlqRepository;
+import com.orderplatform.core.application.port.OrderRepository;
 import com.orderplatform.api.infrastructure.messaging.InMemoryOrderQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

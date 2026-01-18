@@ -1,7 +1,7 @@
 package com.orderplatform.api.application.usecase;
 
-import com.orderplatform.api.application.port.OrderDlqRepository;
-import com.orderplatform.api.infrastructure.persistence.OrderDlqEntity;
+import com.orderplatform.core.application.model.OrderDlqEntry;
+import com.orderplatform.core.application.port.OrderDlqRepository;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -15,7 +15,8 @@ public class ListDlqEntriesUseCase {
         this.dlqRepository = dlqRepository;
     }
 
-    public List<OrderDlqEntity> execute(int limit) {
+    public List<OrderDlqEntry> execute(int limit) {
         return dlqRepository.findLatest(limit);
     }
 }
+

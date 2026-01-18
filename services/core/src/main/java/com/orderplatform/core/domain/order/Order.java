@@ -104,6 +104,7 @@ public class Order {
         }
         status = OrderStatus.PENDING;
         failureReason = reason;
+        retryCount = 0;
         touch(now);
     }
 
