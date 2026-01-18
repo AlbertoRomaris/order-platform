@@ -81,4 +81,31 @@ public class Order {
         retryCount += 1;
         touch(now);
     }
+
+    public void markRetryableFailure(String reason, Instant now) {
+        if (status != OrderStatus.PROCESSING) {
+            throw new IllegalStateException(
+                    "Order must be PROCESSING to retry-fail. Current=" + status
+            );
+        }
+
+        retryCount += 1;
+        failureReason = (reason == null || reason.isBlank()) ? "unknown" : reason;
+
+        // IMPORTANT: PENDING again
+        status = OrderStatus.PENDING;
+        touch(now);
+    }
+
+    public void resetToPending(String reason, Instant now) {
+        // se permite resetear desde FAILED (típico reprocess)
+        if (status != OrderStatus.FAILED) {
+            throw new IllegalStateException("Only FAILED orders can be reprocessed. Current=" + status);
+        }
+        status = OrderStatus.PENDING;
+        failureReason = reason;
+        touch(now);
+    }
+
+
 }
