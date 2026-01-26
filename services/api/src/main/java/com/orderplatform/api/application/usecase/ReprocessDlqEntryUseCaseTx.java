@@ -1,8 +1,7 @@
 package com.orderplatform.api.application.usecase;
 
 import com.orderplatform.core.application.port.OrderEventPublisher;
-import com.orderplatform.core.application.port.OrderRepository;
-import com.orderplatform.core.domain.order.Order;
+import com.orderplatform.core.application.usecase.ReprocessDlqEntryUseCase;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -12,31 +11,26 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Service
-public class CreateOrderUseCase {
+public class ReprocessDlqEntryUseCaseTx {
 
-    private final OrderRepository orderRepository;
+    private final ReprocessDlqEntryUseCase useCase;
     private final OrderEventPublisher eventPublisher;
 
-    public CreateOrderUseCase(OrderRepository orderRepository, OrderEventPublisher eventPublisher) {
-        this.orderRepository = orderRepository;
+    public ReprocessDlqEntryUseCaseTx(ReprocessDlqEntryUseCase useCase,
+                                      OrderEventPublisher eventPublisher) {
+        this.useCase = useCase;
         this.eventPublisher = eventPublisher;
     }
 
     @Transactional
-    public UUID create() {
-        UUID orderId = UUID.randomUUID();
-        Order order = Order.newPending(orderId, Instant.now());
+    public void execute(UUID orderId) {
+        UUID idToPublish = useCase.execute(orderId, Instant.now());
 
-        orderRepository.save(order);
-
-        // IMPORTANT: publish only AFTER the DB transaction is committed
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-                eventPublisher.publishOrderCreated(orderId);
+                eventPublisher.publishOrderCreated(idToPublish);
             }
         });
-
-        return orderId;
     }
 }

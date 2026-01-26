@@ -1,7 +1,7 @@
 package com.orderplatform.api.infrastructure.web;
 
-import com.orderplatform.api.application.usecase.ListDlqEntriesUseCase;
-import com.orderplatform.api.application.usecase.ReprocessDlqEntryUseCase;
+import com.orderplatform.api.application.usecase.ReprocessDlqEntryUseCaseTx;
+import com.orderplatform.core.application.usecase.ListDlqEntriesUseCase;
 import com.orderplatform.api.infrastructure.web.dto.DlqEntryResponse;
 import com.orderplatform.core.application.model.OrderDlqEntry;
 import org.springframework.http.ResponseEntity;
@@ -14,10 +14,10 @@ import java.util.UUID;
 public class DlqController {
 
     private final ListDlqEntriesUseCase listDlqEntriesUseCase;
-    private final ReprocessDlqEntryUseCase reprocessDlqEntryUseCase;
+    private final ReprocessDlqEntryUseCaseTx reprocessDlqEntryUseCase;
 
     public DlqController(ListDlqEntriesUseCase listDlqEntriesUseCase,
-                         ReprocessDlqEntryUseCase reprocessDlqEntryUseCase) {
+                         ReprocessDlqEntryUseCaseTx reprocessDlqEntryUseCase) {
         this.listDlqEntriesUseCase = listDlqEntriesUseCase;
         this.reprocessDlqEntryUseCase = reprocessDlqEntryUseCase;
     }

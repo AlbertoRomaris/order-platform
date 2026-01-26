@@ -1,6 +1,6 @@
 package com.orderplatform.api.infrastructure.web;
 
-import com.orderplatform.api.application.usecase.CreateOrderUseCase;
+import com.orderplatform.api.application.usecase.CreateOrderUseCaseTx;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -13,15 +13,15 @@ import java.util.UUID;
 @RequestMapping("/orders")
 public class OrderController {
 
-    private final CreateOrderUseCase createOrderUseCase;
+    private final CreateOrderUseCaseTx createOrderUseCase;
 
-    public OrderController(CreateOrderUseCase createOrderUseCase) {
+    public OrderController(CreateOrderUseCaseTx createOrderUseCase) {
         this.createOrderUseCase = createOrderUseCase;
     }
 
     @PostMapping
     public ResponseEntity<Map<String, UUID>> createOrder() {
-        UUID orderId = createOrderUseCase.create();
+        UUID orderId = createOrderUseCase.execute();
 
         // 202 Accepted: async
         return ResponseEntity.accepted().body(Map.of("orderId", orderId));

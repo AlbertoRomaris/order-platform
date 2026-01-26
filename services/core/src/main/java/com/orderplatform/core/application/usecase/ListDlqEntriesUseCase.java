@@ -1,12 +1,10 @@
-package com.orderplatform.api.application.usecase;
+package com.orderplatform.core.application.usecase;
 
 import com.orderplatform.core.application.model.OrderDlqEntry;
 import com.orderplatform.core.application.port.OrderDlqRepository;
-import org.springframework.stereotype.Service;
 
 import java.util.List;
 
-@Service
 public class ListDlqEntriesUseCase {
 
     private final OrderDlqRepository dlqRepository;

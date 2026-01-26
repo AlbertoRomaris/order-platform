@@ -1,6 +1,6 @@
 package com.orderplatform.api.infrastructure.web;
 
-import com.orderplatform.api.application.usecase.GetOrderUseCase;
+import com.orderplatform.core.application.usecase.GetOrderUseCase;
 import com.orderplatform.core.domain.order.Order;
 import com.orderplatform.api.infrastructure.web.dto.OrderResponse;
 import org.springframework.http.ResponseEntity;

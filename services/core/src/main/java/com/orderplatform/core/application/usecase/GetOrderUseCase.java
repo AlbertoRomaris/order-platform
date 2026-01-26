@@ -1,13 +1,12 @@
-package com.orderplatform.api.application.usecase;
+package com.orderplatform.core.application.usecase;
 
 import com.orderplatform.core.application.port.OrderRepository;
 import com.orderplatform.core.domain.order.Order;
-import org.springframework.stereotype.Service;
 
 import java.util.Optional;
 import java.util.UUID;
 
-@Service
+
 public class GetOrderUseCase {
 
     private final OrderRepository orderRepository;
