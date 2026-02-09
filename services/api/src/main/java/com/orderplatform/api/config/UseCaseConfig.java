@@ -1,11 +1,9 @@
 package com.orderplatform.api.config;
 
 import com.orderplatform.core.application.port.OrderDlqRepository;
+import com.orderplatform.core.application.port.OrderProcessor;
 import com.orderplatform.core.application.port.OrderRepository;
-import com.orderplatform.core.application.usecase.CreateOrderUseCase;
-import com.orderplatform.core.application.usecase.GetOrderUseCase;
-import com.orderplatform.core.application.usecase.ListDlqEntriesUseCase;
-import com.orderplatform.core.application.usecase.ReprocessDlqEntryUseCase;
+import com.orderplatform.core.application.usecase.*;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -31,6 +29,14 @@ public class UseCaseConfig {
     public GetOrderUseCase getOrderUseCase(OrderRepository orderRepository) {
         return new GetOrderUseCase(orderRepository);
     }
+
+    @Bean
+    public ProcessOrderUseCase processOrderUseCase(OrderRepository orderRepository,
+                                                   OrderDlqRepository dlqRepository,
+                                                   OrderProcessor orderProcessor) {
+        return new ProcessOrderUseCase(orderRepository, dlqRepository, orderProcessor);
+    }
+
 
 
 }

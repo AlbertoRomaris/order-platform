@@ -1,3 +1,6 @@
 spring:
   application:
     name: core
+order:
+  events:
+    mode: inmemory

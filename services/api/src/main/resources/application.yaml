@@ -24,7 +24,7 @@ spring:
 order:
   worker:
     maxRetries: 3
-    failureProbability: 1.0
+    failureProbability: 0.33
     processingDelayMs: 500
     retryDelayMs: 1000
 
