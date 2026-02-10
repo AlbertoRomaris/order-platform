@@ -1,10 +1,7 @@
 package com.orderplatform.api.application.usecase;
 
-import com.orderplatform.core.application.model.OutboxEvent;
-import com.orderplatform.core.application.port.OutboxRepository;
 import com.orderplatform.core.application.port.OrderEventPublisher;
 import com.orderplatform.core.application.usecase.CreateOrderUseCase;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;

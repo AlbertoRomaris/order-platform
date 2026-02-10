@@ -41,6 +41,21 @@ services:
       timeout: 3s
       retries: 10
 
+  localstack:
+    image: localstack/localstack:3
+    container_name: order-platform-localstack
+
+    ports:
+      - "4566:4566"
+
+    environment:
+      SERVICES: sqs
+      AWS_DEFAULT_REGION: eu-west-1
+      DEBUG: 0
+
+    volumes:
+      - ./localstack/init:/etc/localstack/init/ready.d
+
 # Definición de volúmenes persistentes
 volumes:
   order_platform_pgdata:

@@ -6,6 +6,7 @@ import com.orderplatform.core.application.usecase.ProcessOrderUseCase;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +21,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Component
+@ConditionalOnProperty(name = "worker.mode", havingValue = "outbox-processor", matchIfMissing = true)
 public class OutboxPollingJob {
 
     private static final Logger log = LoggerFactory.getLogger(OutboxPollingJob.class);

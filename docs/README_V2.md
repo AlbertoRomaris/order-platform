@@ -15,7 +15,7 @@ V2 introduces:
 - Explicit ownership of responsibilities between API and Worker
 - Failure handling prepared for distributed systems
 
-No external queue or cloud provider is required yet.
+No external queue is required for the core architecture, although V2 includes an optional SQS-based adapter for cloud-ready execution.
 The system still runs locally using PostgreSQL as the source of truth.
 
 ---
@@ -299,6 +299,69 @@ Each DLQ entry stores:
 
 DLQ entries survive restarts and crashes.
 
+
+---
+
+## Dual DLQ: Business vs Infrastructure
+
+V2 deliberately distinguishes between **two different Dead Letter Queues**,
+each serving a different responsibility.
+
+This separation is intentional and mirrors real-world production systems.
+
+---
+
+### Business DLQ (Database-backed)
+
+The **business DLQ** is persisted in the database (`order_dlq` table).
+
+It represents **business-level failure**, not infrastructure failure.
+
+Characteristics:
+
+- Created when an order exhausts all retries
+- Fully controlled by domain logic
+- Supports manual reprocessing
+- Survives restarts and crashes
+- Cleared explicitly during reprocess
+
+This DLQ is part of the **core business model**.
+
+---
+
+### Infrastructure DLQ (SQS DLQ)
+
+When using SQS, a second DLQ exists at the **infrastructure level**.
+
+This DLQ is managed by SQS via its Redrive Policy and protects against:
+
+- consumer crashes
+- bugs in message handling
+- worker downtime
+- poisoned messages
+
+Characteristics:
+
+- Automatically populated by SQS
+- Independent of business logic
+- Not cleared by business reprocessing
+- Requires operational intervention (redrive or purge)
+
+The API and domain logic are **intentionally unaware** of this DLQ.
+
+---
+
+### Why two DLQs?
+
+Separating business failures from infrastructure failures ensures:
+
+- clean domain boundaries
+- no AWS-specific logic in the core
+- clearer operational responsibilities
+- production-grade failure handling
+
+This design avoids coupling business recovery with messaging infrastructure.
+
 ---
 
 ## Manual Reprocessing (V2 semantics)
@@ -321,6 +384,29 @@ Important:
 
 ---
 
+### Reprocessing and SQS DLQ interaction
+
+Manual reprocessing operates **only at the business level**.
+
+When `POST /dlq/{orderId}/reprocess` is executed:
+
+- the database DLQ entry is removed
+- the order state is reset
+- a new event is emitted
+- the worker processes the order again
+
+Messages that may exist in the **SQS DLQ are not automatically removed**.
+
+This is intentional:
+
+- SQS DLQ is an infrastructure concern
+- business reprocessing must not depend on AWS APIs
+- infrastructure recovery is handled separately (redrive or purge)
+
+This mirrors how SQS DLQs are handled in real production systems.
+
+---
+
 ## Configuration
 
 Worker behavior is fully configurable:
@@ -328,6 +414,9 @@ Worker behavior is fully configurable:
 ```yaml
 worker:
   outbox:
+    lockTimeoutSeconds: 30
+  mode: sqs-consumer
+  sqs:
     poll:
       delay-ms: 1000
 
@@ -336,7 +425,183 @@ order:
     maxRetries: 3
     retryDelayMs: 1000
     failureProbability: 0.3
+
+aws:
+  region: eu-west-1
+  sqs:
+    endpoint: http://localhost:4566
+    queueUrl: http://localhost:4566/000000000000/order-events
 ```
+## Runtime configuration & execution modes
+
+This project is designed to change **behavior through configuration**, not code.
+Several configuration keys accept **multiple semantic values** that alter how
+the system behaves at runtime.
+
+Only non-trivial, choice-based parameters are documented here.
+
+---
+
+## Worker execution mode
+
+### `worker.mode`
+
+Defines **how the worker receives and processes events**.
+
+This is the most important switch in the system.
+
+Supported values:
+
+### `outbox`
+
+**Meaning**
+
+- The worker polls the database outbox table.
+- PostgreSQL acts as both the source of truth and the delivery mechanism.
+
+**How it works**
+
+- The API writes domain events to the `order_outbox` table inside the same transaction
+  as the business change.
+- The worker periodically queries the outbox table.
+- Events are locked using `FOR UPDATE SKIP LOCKED` to prevent double processing.
+- Retry state, backoff, and failures are persisted in the database.
+
+**Failure semantics**
+
+- Retries are controlled by persisted fields (`attempts`, `next_attempt_at`).
+- After max retries:
+  - the order is marked `FAILED`
+  - an entry is written to the database DLQ
+
+**When to use**
+
+- Local development
+- Architectural demonstrations
+- Systems without external messaging infrastructure
+- When maximum observability and debuggability are desired
+
+**Key characteristics**
+
+- Fully deterministic
+- Crash-safe
+- Easy to reason about
+- Slower throughput, but very explicit behavior
+
+---
+
+### `sqs-consumer`
+
+**Meaning**
+
+- The worker consumes events from an AWS SQS queue.
+- The database outbox is **not polled** in this mode.
+
+**How it works**
+
+- The API publishes events directly to SQS.
+- The worker polls SQS using long polling.
+- Messages are deleted only after successful processing.
+- Retries are driven by SQS visibility timeout and redelivery.
+- After `maxReceiveCount`, messages are routed automatically to the SQS DLQ.
+
+**Failure semantics**
+
+- Transport-level retries are handled by SQS.
+- Business-level retries are still enforced by the domain logic.
+- When business retries are exhausted:
+  - the order is marked `FAILED`
+  - an entry is written to the database DLQ
+- The SQS DLQ keeps the original message for inspection or replay.
+
+**When to use**
+
+- Cloud-native deployments
+- AWS-based environments
+- Systems that need horizontal scalability
+- When infrastructure-managed reliability is preferred
+
+**Key characteristics**
+
+- Horizontally scalable
+- Queue-driven backpressure
+- Infrastructure-managed retries
+- Slightly less transparent than database outbox
+
+---
+
+### Design rule
+
+Changing `worker.mode`:
+
+- does **not** change business logic
+- does **not** change domain behavior
+- only changes **how events are transported**
+
+This guarantees that architectural decisions remain isolated from the core domain.
+
+---
+
+## Failure simulation (testing only)
+
+### `order.worker.failureProbability`
+
+**Meaning**
+
+- Artificial probability of failure during order processing.
+- Used to validate retry, DLQ, and reprocessing flows.
+
+**Values**
+
+- `0.0` → no simulated failures
+- `1.0` → always fail
+- any value in between → probabilistic failure
+
+**Important**
+
+- This is a **testing and demonstration tool only**
+- It must be set to `0` in real environments
+
+---
+
+## AWS / SQS configuration
+
+### `aws.sqs.endpoint`
+
+**Meaning**
+
+- Endpoint of the SQS-compatible service.
+
+**Typical values**
+
+- `http://localhost:4566` → LocalStack (local development)
+- AWS-managed endpoint → real AWS environment
+
+---
+
+### `aws.sqs.queueUrl`
+
+**Meaning**
+
+- URL of the main SQS queue used to deliver order events.
+
+**Notes**
+
+- The DLQ is configured at the SQS level using `RedrivePolicy`
+- The worker does not need to know the DLQ URL explicitly
+
+---
+
+## Configuration philosophy
+
+- Numeric values tune behavior
+- Enum-like values (`mode`) change execution semantics
+- All modes are supported by the same binaries
+- No feature flags, no branching business logic
+
+This keeps the system **predictable, testable, and evolution-friendly**.
+
+---
 
 ## Project Structure (V2)
 

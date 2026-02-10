@@ -27,9 +27,15 @@ order:
     failureProbability: 0.33
     processingDelayMs: 500
     retryDelayMs: 1000
+  events:
+    mode: sqs
 
 logging:
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - correlationId=%X{correlationId} %msg%n"
-
+aws:
+  region: eu-west-1
+  sqs:
+    endpoint: http://localhost:4566
+    queueUrl: http://localhost:4566/000000000000/order-events
 
