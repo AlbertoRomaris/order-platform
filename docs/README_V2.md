@@ -234,6 +234,18 @@ PROCESSING (locked by worker-X)
 +--> FAILED
 ```
 
+### Stale lock recovery (processing lock timeout)
+
+To handle worker crashes or abrupt shutdowns, the worker periodically releases
+stale outbox locks:
+
+- Events stuck in `PROCESSING` with `locked_at` older than a configurable timeout
+  are returned to `PENDING`.
+- This mirrors the idea of a queue visibility timeout (e.g., SQS).
+
+Config:
+- `worker.outbox.lockTimeoutSeconds` (default: 30)
+
 ---
 
 ## Order Lifecycle (unchanged, but now distributed)

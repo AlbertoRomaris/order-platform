@@ -29,25 +29,35 @@ public class JdbcOutboxRepository implements OutboxRepository {
 
     @Override
     public List<OutboxEvent> claimReady(int limit, Instant now, String lockedBy) {
-        // 1) Selecciona eventos listos y los bloquea (evita que 2 workers cojan lo mismo)
         String sql = """
-            SELECT id, aggregate_id, event_type, payload, status, attempts, next_attempt_at, created_at
+        UPDATE order_outbox
+        SET status = 'PROCESSING',
+            locked_at = ?,
+            locked_by = ?
+        WHERE id IN (
+            SELECT id
             FROM order_outbox
             WHERE status = 'PENDING'
               AND next_attempt_at <= ?
             ORDER BY created_at
             FOR UPDATE SKIP LOCKED
             LIMIT ?
-            """;
+        )
+        RETURNING id, aggregate_id, event_type, payload, status, attempts, next_attempt_at, created_at
+        """;
 
-        return jdbc.query(sql,
+        return jdbc.query(
+                sql,
                 ps -> {
                     ps.setTimestamp(1, Timestamp.from(now));
-                    ps.setInt(2, limit);
+                    ps.setString(2, lockedBy);
+                    ps.setTimestamp(3, Timestamp.from(now));
+                    ps.setInt(4, limit);
                 },
                 (rs, rowNum) -> map(rs)
         );
     }
+
 
     @Override
     public void markProcessing(UUID eventId, Instant lockedAt, String lockedBy) {
@@ -130,5 +140,22 @@ public class JdbcOutboxRepository implements OutboxRepository {
         jdbc.update(sql, Timestamp.from(failedAt), lastError, eventId);
     }
 
+    @Override
+    public int releaseStaleLocks(Instant olderThan) {
+        String sql = """
+        UPDATE order_outbox
+        SET status = 'PENDING',
+            locked_at = NULL,
+            locked_by = NULL
+        WHERE status = 'PROCESSING'
+          AND locked_at IS NOT NULL
+          AND locked_at < ?
+        """;
+
+        return jdbc.update(
+                sql,
+                Timestamp.from(olderThan)
+        );
+    }
 
 }

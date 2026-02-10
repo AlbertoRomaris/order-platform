@@ -36,6 +36,9 @@ public class OutboxPollingJob {
     @Value("${worker.outbox.retryDelayMs:1000}")
     private long retryDelayMs;
 
+    @Value("${worker.outbox.lockTimeoutSeconds:30}")
+    private long lockTimeoutSeconds;
+
     public OutboxPollingJob(OutboxRepository outboxRepository,
                             ProcessOrderUseCase processOrderUseCase,
                             ObjectMapper objectMapper) {
@@ -66,6 +69,12 @@ public class OutboxPollingJob {
     @Transactional
     public void poll() {
         Instant now = Instant.now();
+        Instant olderThan = now.minusSeconds(lockTimeoutSeconds);
+        int released = outboxRepository.releaseStaleLocks(olderThan);
+        if (released > 0) {
+            log.warn("Released {} stale outbox locks older than {} seconds", released, lockTimeoutSeconds);
+        }
+
         List<OutboxEvent> events = outboxRepository.claimReady(5, now, workerId);
 
         if (events.isEmpty()) {
@@ -82,14 +91,13 @@ public class OutboxPollingJob {
             }
 
             try {
-                // 1) Claim/lock
-                outboxRepository.markProcessing(eventId, now, workerId);
 
-                // 2) Real Work (state order + DLQ/retryCount)
+
+                // 1) Real Work (state order + DLQ/retryCount)
                 ProcessOrderUseCase.Outcome outcome =
                         processOrderUseCase.execute(orderId, now, maxRetries);
 
-                // 3) ONLY if work is completely and successfully
+                // 2) ONLY if work is completely and successfully
                 if (outcome == ProcessOrderUseCase.Outcome.PROCESSED) {
                     outboxRepository.markProcessed(eventId, Instant.now());
                     log.info("Order {} PROCESSED; outbox {} PROCESSED", orderId, eventId);

@@ -13,6 +13,7 @@ public interface OutboxRepository {
     void markProcessed(UUID eventId, Instant processedAt);
     void reschedule(UUID eventId, Instant nextAttemptAt, String lastError);
     void markFailed(UUID eventId, Instant failedAt, String lastError);
+    int releaseStaleLocks(Instant olderThan);
 
 
 }

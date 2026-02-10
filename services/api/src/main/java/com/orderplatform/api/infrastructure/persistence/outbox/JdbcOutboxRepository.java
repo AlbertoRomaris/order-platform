@@ -73,4 +73,9 @@ public class JdbcOutboxRepository implements OutboxRepository {
     public void markFailed(UUID eventId, Instant failedAt, String lastError) {
         throw new UnsupportedOperationException("Outbox polling is handled by worker");
     }
+
+    @Override
+    public int releaseStaleLocks(Instant olderThan) {
+        throw new UnsupportedOperationException("Outbox polling is handled by worker");
+    }
 }
