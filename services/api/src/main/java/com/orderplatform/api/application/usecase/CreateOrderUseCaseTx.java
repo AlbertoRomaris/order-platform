@@ -18,45 +18,30 @@ public class CreateOrderUseCaseTx {
 
     private final CreateOrderUseCase useCase;
     private final OrderEventPublisher eventPublisher;
-    private final OutboxRepository outboxRepository;
-    private final String eventsMode;
 
     public CreateOrderUseCaseTx(CreateOrderUseCase useCase,
-                                OrderEventPublisher eventPublisher,
-                                OutboxRepository outboxRepository,
-                                @Value("${order.events.mode:inmemory}") String eventsMode) {
+                                OrderEventPublisher eventPublisher) {
         this.useCase = useCase;
         this.eventPublisher = eventPublisher;
-        this.outboxRepository = outboxRepository;
-        this.eventsMode = eventsMode;
     }
+
 
     @Transactional
     public UUID execute() {
         Instant now = Instant.now();
         UUID orderId = useCase.execute(now);
 
-        if ("outbox".equalsIgnoreCase(eventsMode)) {
-            OutboxEvent event = OutboxEvent.pending(
-                    orderId,
-                    "OrderCreated",
-                    null,
-                    now
-            );
-            outboxRepository.enqueue(event);
-        } else {
-            // Mode V1: publicamos afterCommit a la cola in-memory
-            TransactionSynchronizationManager.registerSynchronization(
-                    new TransactionSynchronization() {
-                        @Override
-                        public void afterCommit() {
-                            eventPublisher.publishOrderCreated(orderId);
-                        }
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        eventPublisher.publishOrderCreated(orderId);
                     }
-            );
-        }
+                }
+        );
 
         return orderId;
     }
+
 }
 

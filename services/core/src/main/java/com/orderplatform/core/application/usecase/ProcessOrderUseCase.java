@@ -37,7 +37,7 @@ public class ProcessOrderUseCase {
             order.markProcessing(now);
             orderRepository.save(order);
 
-            // “Trabajo real” (puede fallar)
+
             processor.process(orderId);
 
             // PROCESSING -> PROCESSED

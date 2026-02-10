@@ -28,3 +28,8 @@ order:
     processingDelayMs: 500
     retryDelayMs: 1000
 
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - correlationId=%X{correlationId} %msg%n"
+
+

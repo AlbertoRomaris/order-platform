@@ -107,6 +107,65 @@ The outbox table guarantees:
 
 ---
 
+## Observability & Traceability (Correlation ID)
+
+V2 introduces **end-to-end traceability** using a Correlation ID, designed
+specifically for asynchronous, event-driven systems.
+
+The goal is to follow a **single business intent** across:
+- HTTP requests
+- Transactional outbox
+- Asynchronous worker processing
+- Retries and DLQ handling
+
+This is critical in distributed systems where execution is decoupled
+in time and process.
+
+---
+
+### Correlation ID lifecycle
+
+1. **API**
+  - Each incoming HTTP request accepts an optional `X-Correlation-Id` header.
+  - If not provided, the API generates one automatically.
+  - The Correlation ID is stored in MDC and appears in all API logs.
+
+2. **Outbox**
+  - The Correlation ID is persisted inside the outbox event payload.
+  - This guarantees durability and allows correlation even after restarts.
+
+   Example payload:
+   ```json
+   {
+     "orderId": "...",
+     "correlationId": "test-777"
+   }
+```
+
+3. **Worker**
+- The worker extracts the Correlation ID from the event payload.
+- It injects it into MDC during event processing.
+- All logs related to processing, retries, and failures include the same Correlation ID.
+  
+Example logs:
+   ```json
+   {
+  correlationId=test-777 Order ... RETRY
+  correlationId=test-777 Order ... PROCESSED
+   }
+```
+
+This allows reconstructing the full lifecycle of an order across
+asynchronous boundaries.
+
+### Design notes
+
+- Correlation IDs are transport-agnostic (DB outbox, SQS, Kafka).
+- They survive crashes, retries, and restarts.
+- This design is compatible with cloud-native observability stacks (e.g. CloudWatch, OpenTelemetry).
+
+---
+
 ## Responsibility Split
 
 ### API Service

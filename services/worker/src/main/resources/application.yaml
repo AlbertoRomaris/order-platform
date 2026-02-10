@@ -24,4 +24,7 @@ management:
     web:
       exposure:
         include: health,info
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - correlationId=%X{correlationId} %msg%n"
 

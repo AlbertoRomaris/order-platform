@@ -5,6 +5,7 @@ import com.orderplatform.core.application.port.OrderEventPublisher;
 import com.orderplatform.core.application.port.OutboxRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
@@ -25,8 +26,17 @@ public class OutboxOrderEventPublisher implements OrderEventPublisher {
 
     @Override
     public void publishOrderCreated(UUID orderId) {
-        String payload = "{\"orderId\":\"" + orderId + "\"}";
+        String correlationId = MDC.get("correlationId");
+
+        String payload = """
+        {"orderId":"%s","correlationId":%s}
+        """.formatted(
+                orderId,
+                correlationId == null ? "null" : "\"" + correlationId + "\""
+        ).trim();
+
         OutboxEvent event = OutboxEvent.pending(orderId, "OrderCreated", payload, Instant.now());
+
         outboxRepository.enqueue(event);
         log.info("Enqueued OrderCreated event for order {} into outbox", orderId);
     }

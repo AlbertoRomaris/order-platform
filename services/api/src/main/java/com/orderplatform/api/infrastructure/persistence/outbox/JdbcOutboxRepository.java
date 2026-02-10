@@ -10,10 +10,16 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+
 @Repository
 public class JdbcOutboxRepository implements OutboxRepository {
 
     private final JdbcTemplate jdbc;
+
+    private static final Logger log = LoggerFactory.getLogger(JdbcOutboxRepository.class);
 
     public JdbcOutboxRepository(JdbcTemplate jdbc) {
         this.jdbc = jdbc;
@@ -21,6 +27,7 @@ public class JdbcOutboxRepository implements OutboxRepository {
 
     @Override
     public void enqueue(OutboxEvent event) {
+
         String sql = """
             INSERT INTO order_outbox
               (id, aggregate_id, event_type, payload, status, attempts, next_attempt_at, created_at)
