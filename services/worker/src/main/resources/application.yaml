@@ -39,12 +39,13 @@ worker:
 aws:
   region: eu-west-1
   sqs:
-    endpoint: http://localhost:4566
-    queueUrl: http://localhost:4566/000000000000/order-events
+    #endpoint: http://localhost:4566
+    #queueUrl: http://localhost:4566/000000000000/order-events
+    queueUrl: "https://sqs.eu-west-1.amazonaws.com/583880312081/order-platform-aws-lab-order-events"
 order:
   worker:
     maxRetries: 3
     retryDelayMs: 1000
-    failureProbability: 0.3
+    failureProbability: 0.0
 
 

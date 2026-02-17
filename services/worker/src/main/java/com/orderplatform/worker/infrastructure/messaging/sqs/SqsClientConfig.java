@@ -3,10 +3,10 @@ package com.orderplatform.worker.infrastructure.messaging.sqs;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.sqs.SqsClient;
+import software.amazon.awssdk.services.sqs.SqsClientBuilder;
 
 import java.net.URI;
 
@@ -16,16 +16,17 @@ public class SqsClientConfig {
     @Bean
     public SqsClient sqsClient(
             @Value("${aws.region:eu-west-1}") String region,
-            @Value("${aws.sqs.endpoint:http://localhost:4566}") String endpoint
+            @Value("${aws.sqs.endpoint:}") String endpoint
     ) {
-        return SqsClient.builder()
+        SqsClientBuilder builder = SqsClient.builder()
                 .region(Region.of(region))
-                .endpointOverride(URI.create(endpoint))
-                .credentialsProvider(
-                        StaticCredentialsProvider.create(
-                                AwsBasicCredentials.create("test", "test")
-                        )
-                )
-                .build();
+                .credentialsProvider(DefaultCredentialsProvider.create());
+
+        // LocalStack only: if endpoint is provided, override it
+        if (endpoint != null && !endpoint.isBlank()) {
+            builder.endpointOverride(URI.create(endpoint));
+        }
+
+        return builder.build();
     }
 }
