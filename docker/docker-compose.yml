@@ -1,40 +1,40 @@
-# Versión implícita de Docker Compose
-# Define QUÉ servicios existen en este entorno
+# Implicit Docker Compose version
+# Defines WHAT services exist in this environment
 services:
 
-  # Nombre lógico del servicio
+  # Logical name of the service
   postgres:
 
-    # Imagen oficial de PostgreSQL, versión 16
-    # Usar versiones explícitas evita sorpresas
+    # Official PostgreSQL image, version 16
+    # Using explicit versions avoids surprises
     image: postgres:16
 
-    # Nombre fijo del contenedor (útil para logs y debug)
+    # Fixed container name (useful for logs and debugging)
     container_name: order-platform-postgres
 
-    # Variables de entorno que Postgres usa al arrancar
+    # Environment variables used by Postgres at startup
     environment:
-      # Nombre de la base de datos que se crea automáticamente
+      # Name of the database that is automatically created
       POSTGRES_DB: orderdb
 
-      # Usuario administrador de la base de datos
+      # Database administrator user
       POSTGRES_USER: orderuser
 
-      # Contraseña del usuario
+      # Password for the user
       POSTGRES_PASSWORD: orderpass123
 
-    # Mapeo de puertos
-    # puerto_PC:puerto_contenedor
+    # Port mapping
+    # host_port:container_port
     ports:
       - "5433:5432"
 
-    # Volúmenes = persistencia de datos
-    # Aunque el contenedor se borre, los datos NO se pierden
+    # Volumes = data persistence
+    # Even if the container is removed, data is NOT lost
     volumes:
       - order_platform_pgdata:/var/lib/postgresql/data
 
-    # Healthcheck: Docker comprueba si Postgres está listo
-    # Muy importante para sistemas reales
+    # Healthcheck: Docker checks if Postgres is ready
+    # Very important for real-world systems
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U orderuser -d orderdb"]
       interval: 5s
@@ -56,6 +56,6 @@ services:
     volumes:
       - ./localstack/init:/etc/localstack/init/ready.d
 
-# Definición de volúmenes persistentes
+# Definition of persistent volumes
 volumes:
   order_platform_pgdata:
