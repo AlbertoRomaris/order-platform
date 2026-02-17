@@ -13,3 +13,7 @@ output "order_events_dlq_url" {
 output "order_events_dlq_arn" {
   value = aws_sqs_queue.dlq.arn
 }
+
+output "ec2_public_ip" {
+  value = aws_instance.ec2.public_ip
+}

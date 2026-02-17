@@ -60,24 +60,47 @@ can run correctly with:
 
 ---
 
+#### ✅ V2.5 – AWS Lab – Minimal Cloud Deployment
+Completed.
+
+V2.5 validates that the cloud-ready architecture introduced in V2
+runs correctly on real AWS infrastructure without modifying
+the business logic.
+
+This lab focuses on **runtime validation in AWS**, not on introducing
+new architectural patterns.
+
+**Infrastructure scope:**
+
+- Single EC2 instance (Docker runtime)
+- Dockerized API and Worker services
+- PostgreSQL running in-container
+- AWS SQS replacing database outbox polling
+- SQS Dead Letter Queue (infrastructure-level DLQ)
+- IAM Role attached to EC2 (no static access keys)
+- Infrastructure provisioned via Terraform
+- Security Group restricted to a specific public IP
+
+**Architectural significance:**
+
+- Confirms full separation between business logic and infrastructure
+- Demonstrates IAM Role-based authentication (production-grade pattern)
+- Proves transport pluggability (DB outbox → SQS) without code changes
+- Validates retry semantics and DLQ behavior in real cloud conditions
+- Maintains database as source of truth
+
+This version completes the transition from:
+- V1 → In-process async
+- V2 → Database-backed outbox
+- V2.5 → External cloud transport (SQS on AWS)
+
+📄 Documentation:
+- [AWS Lab – Minimal Cloud Deployment](docs/aws/README_AWS_LAB.md)
+- [Terraform Infrastructure (infra/aws-lab)](infra/aws-lab/README.md)
 
 ---
 
 ### Planned Deployments
-
-#### 🔜 AWS Lab – Minimal Cloud Deployment
-Planned.
-
-- Single EC2 instance
-- Dockerized API and Worker
-- AWS SQS replacing database outbox polling
-- Infrastructure as Code (Terraform)
-- Low-cost, learning-oriented setup
-
-📄 Documentation:
-- `docs/aws/README_AWS_LAB.md` (coming soon)
-
----
 
 #### 🔜 V3 – Production-like Cloud Architecture
 Planned.
