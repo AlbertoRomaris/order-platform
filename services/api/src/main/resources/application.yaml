@@ -42,3 +42,12 @@ aws:
     #queueUrl: http://localhost:4566/000000000000/order-events
     queueUrl: "https://sqs.eu-west-1.amazonaws.com/583880312081/order-platform-aws-lab-order-events"
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
