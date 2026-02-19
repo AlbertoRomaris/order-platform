@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.MDC;
+import com.orderplatform.worker.infrastructure.observability.WorkerMetrics;
 
 
 
@@ -41,12 +42,17 @@ public class OutboxPollingJob {
     @Value("${worker.outbox.lockTimeoutSeconds:30}")
     private long lockTimeoutSeconds;
 
+    private final WorkerMetrics metrics;
+
+
     public OutboxPollingJob(OutboxRepository outboxRepository,
                             ProcessOrderUseCase processOrderUseCase,
-                            ObjectMapper objectMapper) {
+                            ObjectMapper objectMapper,
+                            WorkerMetrics metrics) {
         this.outboxRepository = outboxRepository;
         this.processOrderUseCase = processOrderUseCase;
         this.objectMapper = objectMapper;
+        this.metrics = metrics;
     }
 
 
@@ -70,6 +76,7 @@ public class OutboxPollingJob {
     @Scheduled(fixedDelayString = "${worker.outbox.poll.delay-ms:1000}")
     @Transactional
     public void poll() {
+        metrics.pollTotal.increment();
         Instant now = Instant.now();
         Instant olderThan = now.minusSeconds(lockTimeoutSeconds);
         int released = outboxRepository.releaseStaleLocks(olderThan);
@@ -78,6 +85,7 @@ public class OutboxPollingJob {
         }
 
         List<OutboxEvent> events = outboxRepository.claimReady(5, now, workerId);
+        metrics.messagesReceivedTotal.increment(events.size());
 
         if (events.isEmpty()) {
             return;
@@ -93,26 +101,29 @@ public class OutboxPollingJob {
             }
 
             try {
+                metrics.processingTimer.record(() -> {
 
+                    ProcessOrderUseCase.Outcome outcome =
+                            processOrderUseCase.execute(orderId, now, maxRetries);
 
-                // 1) Real Work (state order + DLQ/retryCount)
-                ProcessOrderUseCase.Outcome outcome =
-                        processOrderUseCase.execute(orderId, now, maxRetries);
+                    if (outcome == ProcessOrderUseCase.Outcome.PROCESSED) {
+                        outboxRepository.markProcessed(eventId, Instant.now());
+                        metrics.messagesProcessedTotal.increment();
+                        log.info("Order {} PROCESSED; outbox {} PROCESSED", orderId, eventId);
 
-                // 2) ONLY if work is completely and successfully
-                if (outcome == ProcessOrderUseCase.Outcome.PROCESSED) {
-                    outboxRepository.markProcessed(eventId, Instant.now());
-                    log.info("Order {} PROCESSED; outbox {} PROCESSED", orderId, eventId);
+                    } else if (outcome == ProcessOrderUseCase.Outcome.RETRY) {
+                        Instant nextAttemptAt = Instant.now().plusMillis(retryDelayMs);
+                        outboxRepository.reschedule(eventId, nextAttemptAt, "retry");
+                        metrics.messagesFailedTotal.increment();
+                        metrics.messagesRetriedTotal.increment();
+                        log.warn("Order {} RETRY; outbox {} rescheduled for {}", orderId, eventId, nextAttemptAt);
 
-                } else if (outcome == ProcessOrderUseCase.Outcome.RETRY) {
-                    Instant nextAttemptAt = Instant.now().plusMillis(retryDelayMs);
-                    outboxRepository.reschedule(eventId, nextAttemptAt, "retry");
-                    log.warn("Order {} RETRY; outbox {} rescheduled for {}", orderId, eventId, nextAttemptAt);
-
-                } else {
-                    outboxRepository.markFailed(eventId, Instant.now(), "failed");
-                    log.error("Order {} FAILED; outbox {} marked FAILED", orderId, eventId);
-                }
+                    } else {
+                        outboxRepository.markFailed(eventId, Instant.now(), "failed");
+                        metrics.messagesFailedTotal.increment();
+                        log.error("Order {} FAILED; outbox {} marked FAILED", orderId, eventId);
+                    }
+                });
             } finally {
                 MDC.remove("correlationId");
             }

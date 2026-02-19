@@ -2,6 +2,7 @@ package com.orderplatform.worker.job;
 
 import com.orderplatform.core.application.model.OutboxEvent;
 import com.orderplatform.core.application.port.OutboxRepository;
+import com.orderplatform.worker.infrastructure.observability.WorkerMetrics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -30,21 +31,27 @@ public class OutboxToSqsRelayJob {
 
     private final String workerId = "worker-relay-1";
 
+    private final WorkerMetrics metrics;
+
     public OutboxToSqsRelayJob(
             OutboxRepository outboxRepository,
             SqsClient sqsClient,
+            WorkerMetrics metrics,
             @Value("${aws.sqs.queueUrl}") String queueUrl
     ) {
         this.outboxRepository = outboxRepository;
         this.sqsClient = sqsClient;
+        this.metrics = metrics;
         this.queueUrl = queueUrl;
     }
 
     @Scheduled(fixedDelayString = "${worker.outbox.poll.delay-ms:1000}")
     @Transactional
     public void pollAndRelay() {
+        metrics.pollTotal.increment();
         var now = java.time.Instant.now();
         List<OutboxEvent> events = outboxRepository.claimReady(5, now, workerId);
+        metrics.messagesReceivedTotal.increment(events.size());
         if (events.isEmpty()) return;
 
         for (OutboxEvent e : events) {
@@ -76,12 +83,15 @@ public class OutboxToSqsRelayJob {
 
                 sqsClient.sendMessage(req.build());
 
+                metrics.relayPublishedTotal.increment();
+
                 outboxRepository.markProcessed(eventId, java.time.Instant.now());
                 log.info("Relayed outbox {} to SQS. aggregateId={}", eventId, e.aggregateId());
 
             } catch (Exception ex) {
                 outboxRepository.reschedule(eventId, java.time.Instant.now().plusSeconds(5), ex.getMessage());
                 log.warn("Relay failed for outbox {}. Rescheduled. err={}", eventId, ex.toString());
+                metrics.relayFailedTotal.increment();
             }
         }
     }
