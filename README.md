@@ -100,6 +100,39 @@ This version completes the transition from:
 
 ---
 
+#### ✅ V2.6 – Minimal Observability Layer
+Completed.
+
+V2.6 introduces a **minimal, production-aligned observability layer**
+focused on making the system measurable, debuggable, and operationally visible
+without altering the core business logic.
+
+This version does not introduce external monitoring systems,
+but prepares the architecture for production-grade observability in V3.
+
+**Key characteristics:**
+
+- Spring Boot Actuator enabled in both API and Worker
+- Prometheus-compatible metrics endpoint (`/actuator/prometheus`)
+- Business-level metrics (orders created, events processed, retries, failures)
+- Transport-aware metrics (SQS vs Outbox)
+- Outbox backlog visibility via database-backed gauges
+- Worker processing latency measurements
+- Clear separation between business logic and observability layer
+
+**Architectural significance:**
+
+- Observability added without polluting the core domain
+- Infrastructure concerns remain in adapters/infrastructure layer
+- Transport pluggability is now observable via metrics
+- Enables operational reasoning (backlog growth, retry storms, worker liveness)
+- Establishes the foundation for production monitoring in V3
+
+📄 Documentation:
+- [V2.6 – Minimal Observability Layer](docs/observability/README_OBSERVABILITY.md)
+
+---
+
 ### Planned Deployments
 
 #### 🔜 V3 – Production-like Cloud Architecture
