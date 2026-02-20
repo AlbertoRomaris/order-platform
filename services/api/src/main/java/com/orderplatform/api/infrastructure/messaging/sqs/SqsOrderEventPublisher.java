@@ -1,5 +1,6 @@
 package com.orderplatform.api.infrastructure.messaging.sqs;
 
+import com.orderplatform.api.infrastructure.observability.ApiMetrics;
 import com.orderplatform.core.application.port.OrderEventPublisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,12 +20,15 @@ public class SqsOrderEventPublisher implements OrderEventPublisher {
 
     private final SqsClient sqsClient;
     private final String queueUrl;
+    private final ApiMetrics apiMetrics;
 
     public SqsOrderEventPublisher(
             SqsClient sqsClient,
+            ApiMetrics apiMetrics,
             @Value("${aws.sqs.queueUrl}") String queueUrl
     ) {
         this.sqsClient = sqsClient;
+        this.apiMetrics = apiMetrics;
         this.queueUrl = queueUrl;
     }
 
@@ -48,9 +52,14 @@ public class SqsOrderEventPublisher implements OrderEventPublisher {
             ));
         }
 
-        sqsClient.sendMessage(req.build());
-
-        log.info("Published OrderCreated to SQS. orderId={}", orderId);
+        try {
+            sqsClient.sendMessage(req.build());
+            apiMetrics.eventPublished("sqs");
+            log.info("Published OrderCreated to SQS. orderId={}", orderId);
+        } catch (Exception ex) {
+            apiMetrics.eventPublishFailed("sqs");
+            throw ex;
+        }
     }
 
 }

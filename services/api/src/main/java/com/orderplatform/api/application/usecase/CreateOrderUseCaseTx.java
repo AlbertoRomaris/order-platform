@@ -1,5 +1,6 @@
 package com.orderplatform.api.application.usecase;
 
+import com.orderplatform.api.infrastructure.observability.ApiMetrics;
 import com.orderplatform.core.application.port.OrderEventPublisher;
 import com.orderplatform.core.application.usecase.CreateOrderUseCase;
 import org.springframework.stereotype.Service;
@@ -15,29 +16,41 @@ public class CreateOrderUseCaseTx {
 
     private final CreateOrderUseCase useCase;
     private final OrderEventPublisher eventPublisher;
+    private final ApiMetrics apiMetrics;
 
     public CreateOrderUseCaseTx(CreateOrderUseCase useCase,
-                                OrderEventPublisher eventPublisher) {
+                                OrderEventPublisher eventPublisher,
+                                ApiMetrics apiMetrics) {
         this.useCase = useCase;
         this.eventPublisher = eventPublisher;
+        this.apiMetrics = apiMetrics;
     }
 
 
     @Transactional
     public UUID execute() {
-        Instant now = Instant.now();
-        UUID orderId = useCase.execute(now);
+        return apiMetrics.createOrderTimer.record(() -> {
 
-        TransactionSynchronizationManager.registerSynchronization(
-                new TransactionSynchronization() {
-                    @Override
-                    public void afterCommit() {
-                        eventPublisher.publishOrderCreated(orderId);
+            Instant now = Instant.now();
+            UUID orderId = useCase.execute(now);
+
+            apiMetrics.ordersCreatedTotal.increment();
+
+            TransactionSynchronizationManager.registerSynchronization(
+                    new TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            try {
+                                eventPublisher.publishOrderCreated(orderId);
+                            } catch (Exception ex) {
+                                throw ex;
+                            }
+                        }
                     }
-                }
-        );
+            );
 
-        return orderId;
+            return orderId;
+        });
     }
 
 }

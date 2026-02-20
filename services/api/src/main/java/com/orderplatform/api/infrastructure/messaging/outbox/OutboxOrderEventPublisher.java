@@ -1,5 +1,6 @@
 package com.orderplatform.api.infrastructure.messaging.outbox;
 
+import com.orderplatform.api.infrastructure.observability.ApiMetrics;
 import com.orderplatform.core.application.model.OutboxEvent;
 import com.orderplatform.core.application.port.OrderEventPublisher;
 import com.orderplatform.core.application.port.OutboxRepository;
@@ -19,9 +20,11 @@ public class OutboxOrderEventPublisher implements OrderEventPublisher {
     private static final Logger log = LoggerFactory.getLogger(OutboxOrderEventPublisher.class);
 
     private final OutboxRepository outboxRepository;
+    private final ApiMetrics apiMetrics;
 
-    public OutboxOrderEventPublisher(OutboxRepository outboxRepository) {
+    public OutboxOrderEventPublisher(OutboxRepository outboxRepository, ApiMetrics apiMetrics) {
         this.outboxRepository = outboxRepository;
+        this.apiMetrics = apiMetrics;
     }
 
     @Override
@@ -37,8 +40,14 @@ public class OutboxOrderEventPublisher implements OrderEventPublisher {
 
         OutboxEvent event = OutboxEvent.pending(orderId, "OrderCreated", payload, Instant.now());
 
-        outboxRepository.enqueue(event);
-        log.info("Enqueued OrderCreated event for order {} into outbox", orderId);
+        try {
+            outboxRepository.enqueue(event);
+            apiMetrics.eventPublished("outbox");
+            log.info("Enqueued OrderCreated event for order {} into outbox", orderId);
+        } catch (Exception ex) {
+            apiMetrics.eventPublishFailed("outbox");
+            throw ex;
+        }
     }
 
 }
