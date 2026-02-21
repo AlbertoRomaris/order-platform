@@ -8,26 +8,29 @@ import org.springframework.stereotype.Component;
 @Component
 public class WorkerMetrics {
 
-    public final Counter pollTotal;
-    public final Counter messagesReceivedTotal;
+    private final MeterRegistry registry;
 
-    public final Counter messagesProcessedTotal;
-    public final Counter messagesFailedTotal;
-    public final Counter messagesRetriedTotal;
+    private final Counter messagesReceivedTotal;
+    private final Counter messagesProcessedTotal;
+    private final Counter messagesFailedTotal;
+    private final Counter messagesRetriedTotal;
 
-    public final Counter businessDlqTotal; // DB order_dlq
-    public final Counter sqsDlqTotal;      // SQS redrive DLQ
+    // terminal failures (NOT real DLQ)
+    private final Counter terminalFailuresTotal;
 
-    public final Timer processingTimer;
+    private final Timer processingTimer;
 
-    public final Counter relayPublishedTotal;
-    public final Counter relayFailedTotal;
+    private final Counter relayPublishedTotal;
+    private final Counter relayFailedTotal;
 
+    private final Counter sqsReceiveTotal;
+    private final Counter sqsReceiveEmptyTotal;
+
+    private final Counter sqsDeleteTotal;
+    private final Counter sqsDeleteFailedTotal;
 
     public WorkerMetrics(MeterRegistry registry) {
-        this.pollTotal = Counter.builder("order_worker_poll_total")
-                .description("Total number of worker poll cycles (SQS long poll or outbox poll)")
-                .register(registry);
+        this.registry = registry;
 
         this.messagesReceivedTotal = Counter.builder("order_worker_messages_received_total")
                 .description("Total number of events/messages received by the worker")
@@ -45,12 +48,9 @@ public class WorkerMetrics {
                 .description("Total number of processing attempts that resulted in a retry")
                 .register(registry);
 
-        this.businessDlqTotal = Counter.builder("order_worker_business_dlq_total")
-                .description("Total number of business DLQ entries created in DB (order_dlq)")
-                .register(registry);
-
-        this.sqsDlqTotal = Counter.builder("order_worker_sqs_dlq_total")
-                .description("Total number of terminal failures that will end up in the SQS DLQ (redrive)")
+        this.terminalFailuresTotal = Counter.builder("order_worker_terminal_failures_total")
+                .description("Total number of terminal failures (not real DLQ) expected to be redriven to a DLQ by the transport")
+                .tag("transport", "sqs")
                 .register(registry);
 
         this.processingTimer = Timer.builder("order_worker_processing_seconds")
@@ -66,5 +66,79 @@ public class WorkerMetrics {
                 .description("Total number of outbox relay attempts that failed")
                 .register(registry);
 
+        this.sqsReceiveTotal = Counter.builder("order_worker_sqs_receive_total")
+                .description("Total number of SQS receiveMessage calls executed")
+                .register(registry);
+
+        this.sqsReceiveEmptyTotal = Counter.builder("order_worker_sqs_receive_empty_total")
+                .description("Total number of SQS receiveMessage calls that returned zero messages")
+                .register(registry);
+
+        this.sqsDeleteTotal = Counter.builder("order_worker_sqs_delete_total")
+                .description("Total number of SQS deleteMessage calls executed successfully")
+                .register(registry);
+
+        this.sqsDeleteFailedTotal = Counter.builder("order_worker_sqs_delete_failed_total")
+                .description("Total number of SQS deleteMessage calls that failed")
+                .register(registry);
+    }
+
+    // ---- Polling ----
+
+    public void incPoll(String mode) {
+        registry.counter("order_worker_poll_total", "mode", mode).increment();
+    }
+
+    public void incPollError(String mode, String error) {
+        registry.counter("order_worker_poll_errors_total", "mode", mode, "error", error).increment();
+    }
+
+    public void incReceived(int n) {
+        if (n > 0) messagesReceivedTotal.increment(n);
+    }
+
+    public void incProcessed() {
+        messagesProcessedTotal.increment();
+    }
+
+    public void incFailed() {
+        messagesFailedTotal.increment();
+    }
+
+    public void incRetried() {
+        messagesRetriedTotal.increment();
+    }
+
+    public void incTerminalFailure() {
+        terminalFailuresTotal.increment();
+    }
+
+    public void incSqsReceive() {
+        sqsReceiveTotal.increment();
+    }
+
+    public void incSqsReceiveEmpty() {
+        sqsReceiveEmptyTotal.increment();
+    }
+
+    public void incSqsDeleteOk() {
+        sqsDeleteTotal.increment();
+    }
+
+    public void incSqsDeleteFail() {
+        sqsDeleteFailedTotal.increment();
+    }
+
+
+    public void incRelayPublished() {
+        relayPublishedTotal.increment();
+    }
+
+    public void incRelayFailed() {
+        relayFailedTotal.increment();
+    }
+
+    public void recordProcessing(Runnable r) {
+        processingTimer.record(r);
     }
 }

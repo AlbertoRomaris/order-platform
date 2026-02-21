@@ -48,10 +48,20 @@ public class OutboxToSqsRelayJob {
     @Scheduled(fixedDelayString = "${worker.outbox.poll.delay-ms:1000}")
     @Transactional
     public void pollAndRelay() {
-        metrics.pollTotal.increment();
+        metrics.incPoll("outbox");
+
         var now = java.time.Instant.now();
-        List<OutboxEvent> events = outboxRepository.claimReady(5, now, workerId);
-        metrics.messagesReceivedTotal.increment(events.size());
+
+        final List<OutboxEvent> events;
+        try {
+            events = outboxRepository.claimReady(5, now, workerId);
+        } catch (Exception ex) {
+            metrics.incPollError("outbox", "sql");
+            log.error("Outbox relay poll failed (DB). err={}", ex.toString());
+            return;
+        }
+
+        metrics.incReceived(events.size());
         if (events.isEmpty()) return;
 
         for (OutboxEvent e : events) {
@@ -62,7 +72,6 @@ public class OutboxToSqsRelayJob {
             outboxRepository.markProcessing(eventId, now, workerId);
 
             try {
-                // correlationId from payload (simple parse, best-effort)
                 String correlationId = extractCorrelationId(payload);
 
                 SendMessageRequest.Builder req = SendMessageRequest.builder()
@@ -82,8 +91,7 @@ public class OutboxToSqsRelayJob {
                 }
 
                 sqsClient.sendMessage(req.build());
-
-                metrics.relayPublishedTotal.increment();
+                metrics.incRelayPublished();
 
                 outboxRepository.markProcessed(eventId, java.time.Instant.now());
                 log.info("Relayed outbox {} to SQS. aggregateId={}", eventId, e.aggregateId());
@@ -91,12 +99,12 @@ public class OutboxToSqsRelayJob {
             } catch (Exception ex) {
                 outboxRepository.reschedule(eventId, java.time.Instant.now().plusSeconds(5), ex.getMessage());
                 log.warn("Relay failed for outbox {}. Rescheduled. err={}", eventId, ex.toString());
-                metrics.relayFailedTotal.increment();
+                metrics.incRelayFailed();
             }
         }
     }
 
-    // best-effort tiny parser without adding Jackson here (to keep job light)
+
     private String extractCorrelationId(String payload) {
         // expects ..."correlationId":"XYZ"...
         int i = payload.indexOf("\"correlationId\"");

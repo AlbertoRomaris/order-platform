@@ -66,7 +66,6 @@ public class OutboxPollingJob {
             String v = cid.asText();
             return (v == null || v.isBlank()) ? null : v;
         } catch (Exception ex) {
-            // Payload malformado no debe tumbar el worker
             log.warn("Could not parse correlationId from payload. payload={}", payload);
             return null;
         }
@@ -76,51 +75,55 @@ public class OutboxPollingJob {
     @Scheduled(fixedDelayString = "${worker.outbox.poll.delay-ms:1000}")
     @Transactional
     public void poll() {
-        metrics.pollTotal.increment();
-        Instant now = Instant.now();
-        Instant olderThan = now.minusSeconds(lockTimeoutSeconds);
-        int released = outboxRepository.releaseStaleLocks(olderThan);
-        if (released > 0) {
-            log.warn("Released {} stale outbox locks older than {} seconds", released, lockTimeoutSeconds);
-        }
+        metrics.incPoll("outbox");
 
-        List<OutboxEvent> events = outboxRepository.claimReady(5, now, workerId);
-        metrics.messagesReceivedTotal.increment(events.size());
+        final Instant now = Instant.now();
+        final Instant olderThan = now.minusSeconds(lockTimeoutSeconds);
 
-        if (events.isEmpty()) {
+        final List<OutboxEvent> events;
+        try {
+            int released = outboxRepository.releaseStaleLocks(olderThan);
+            if (released > 0) {
+                log.warn("Released {} stale outbox locks older than {} seconds", released, lockTimeoutSeconds);
+            }
+
+            events = outboxRepository.claimReady(5, now, workerId);
+        } catch (Exception ex) {
+            metrics.incPollError("outbox", "sql");
+            log.error("Outbox poll failed (DB). err={}", ex.toString());
             return;
         }
+
+        metrics.incReceived(events.size());
+        if (events.isEmpty()) return;
 
         for (OutboxEvent e : events) {
             UUID eventId = e.id();
             UUID orderId = e.aggregateId();
 
             String correlationId = extractCorrelationId(e.payload());
-            if (correlationId != null) {
-                MDC.put("correlationId", correlationId);
-            }
+            if (correlationId != null) MDC.put("correlationId", correlationId);
 
             try {
-                metrics.processingTimer.record(() -> {
-
+                metrics.recordProcessing(() -> {
                     ProcessOrderUseCase.Outcome outcome =
-                            processOrderUseCase.execute(orderId, now, maxRetries);
+                            processOrderUseCase.execute(orderId, Instant.now(), maxRetries);
 
                     if (outcome == ProcessOrderUseCase.Outcome.PROCESSED) {
                         outboxRepository.markProcessed(eventId, Instant.now());
-                        metrics.messagesProcessedTotal.increment();
+                        metrics.incProcessed();
                         log.info("Order {} PROCESSED; outbox {} PROCESSED", orderId, eventId);
 
                     } else if (outcome == ProcessOrderUseCase.Outcome.RETRY) {
                         Instant nextAttemptAt = Instant.now().plusMillis(retryDelayMs);
                         outboxRepository.reschedule(eventId, nextAttemptAt, "retry");
-                        metrics.messagesFailedTotal.increment();
-                        metrics.messagesRetriedTotal.increment();
+                        metrics.incFailed();
+                        metrics.incRetried();
                         log.warn("Order {} RETRY; outbox {} rescheduled for {}", orderId, eventId, nextAttemptAt);
 
                     } else {
                         outboxRepository.markFailed(eventId, Instant.now(), "failed");
-                        metrics.messagesFailedTotal.increment();
+                        metrics.incFailed();
                         log.error("Order {} FAILED; outbox {} marked FAILED", orderId, eventId);
                     }
                 });
@@ -128,6 +131,5 @@ public class OutboxPollingJob {
                 MDC.remove("correlationId");
             }
         }
-
     }
 }

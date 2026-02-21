@@ -29,13 +29,10 @@ public class SqsConsumerJob {
     private final ProcessOrderUseCase processOrderUseCase;
     private final String queueUrl;
 
-    private final String workerId = "worker-sqs-1";
 
     @Value("${order.worker.maxRetries:3}")
     private int maxRetries;
 
-    @Value("${order.worker.retryDelayMs:1000}")
-    private long retryDelayMs;
 
     private final WorkerMetrics metrics;
 
@@ -62,11 +59,23 @@ public class SqsConsumerJob {
                 .messageAttributeNames("All")
                 .build();
 
-        metrics.pollTotal.increment();
+        metrics.incPoll("sqs");
+        metrics.incSqsReceive();
 
-        List<Message> messages = sqsClient.receiveMessage(req).messages();
-        metrics.messagesReceivedTotal.increment(messages.size());
-        if (messages.isEmpty()) return;
+        final List<Message> messages;
+        try {
+            messages = sqsClient.receiveMessage(req).messages();
+        } catch (Exception ex) {
+            metrics.incPollError("sqs", "unknown");
+            log.error("SQS receiveMessage failed. err={}", ex.toString());
+            return;
+        }
+
+        metrics.incReceived(messages.size());
+        if (messages.isEmpty()) {
+            metrics.incSqsReceiveEmpty();
+            return;
+        }
 
         Message m = messages.get(0);
 
@@ -77,44 +86,51 @@ public class SqsConsumerJob {
 
         if (cid != null && !cid.isBlank()) MDC.put("correlationId", cid);
         try {
-            metrics.processingTimer.record(() -> {
+            metrics.recordProcessing(() -> {
                 UUID orderId = extractOrderId(m.body());
-                log.info("SQS message received. messageId={} orderId={} body={}", m.messageId(), orderId, m.body());
+                log.info("SQS message received. messageId={} orderId={}", m.messageId(), orderId);
 
                 Instant now = Instant.now();
                 ProcessOrderUseCase.Outcome outcome =
                         processOrderUseCase.execute(orderId, now, maxRetries);
 
                 if (outcome == ProcessOrderUseCase.Outcome.PROCESSED) {
-                    sqsClient.deleteMessage(DeleteMessageRequest.builder()
-                            .queueUrl(queueUrl)
-                            .receiptHandle(m.receiptHandle())
-                            .build());
-
-                    metrics.messagesProcessedTotal.increment();
-                    log.info("Order {} PROCESSED. SQS message deleted. messageId={}", orderId, m.messageId());
+                    try {
+                        sqsClient.deleteMessage(DeleteMessageRequest.builder()
+                                .queueUrl(queueUrl)
+                                .receiptHandle(m.receiptHandle())
+                                .build());
+                        metrics.incSqsDeleteOk();
+                        metrics.incProcessed();
+                        log.info("Order {} PROCESSED. SQS message deleted. messageId={}", orderId, m.messageId());
+                    } catch (Exception ex) {
+                        metrics.incSqsDeleteFail();
+                        metrics.incFailed();
+                        log.error("SQS deleteMessage failed. messageId={} orderId={} err={}", m.messageId(), orderId, ex.toString());
+                        // Message not deleted -> will be redelivered (expected)
+                    }
 
                 } else if (outcome == ProcessOrderUseCase.Outcome.RETRY) {
-                    metrics.messagesFailedTotal.increment();
-                    metrics.messagesRetriedTotal.increment();
+                    metrics.incFailed();
+                    metrics.incRetried();
                     log.warn("Order {} RETRY. SQS message kept for redelivery after visibility timeout.", orderId);
 
                 } else {
-                    // FAILED (business terminal state). Message will eventually be moved by SQS redrive policy.
-                    metrics.messagesFailedTotal.increment();
-                    metrics.sqsDlqTotal.increment();
+                    // FAILED terminal by business logic. SQS will move to DLQ after maxReceiveCount.
+                    metrics.incFailed();
+                    metrics.incTerminalFailure();
                     log.error("Order {} FAILED. SQS message kept; it will go to DLQ after maxReceiveCount.", orderId);
                 }
             });
 
         } catch (Exception ex) {
-            // Unexpected exception while handling message; message will be redelivered by SQS
-            metrics.messagesFailedTotal.increment();
+            metrics.incFailed();
             log.error("Error handling SQS messageId={}. Message kept for redelivery. err={}", m.messageId(), ex.toString());
         } finally {
             MDC.remove("correlationId");
         }
     }
+
 
     private UUID extractOrderId(String body) {
         // {"orderId":"..."}

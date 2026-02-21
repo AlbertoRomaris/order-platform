@@ -29,28 +29,28 @@ public class CreateOrderUseCaseTx {
 
     @Transactional
     public UUID execute() {
-        return apiMetrics.createOrderTimer.record(() -> {
+        try {
+            return apiMetrics.recordCreateOrder(() -> {
 
-            Instant now = Instant.now();
-            UUID orderId = useCase.execute(now);
+                Instant now = Instant.now();
+                UUID orderId = useCase.execute(now);
 
-            apiMetrics.ordersCreatedTotal.increment();
+                apiMetrics.incOrdersCreated();
 
-            TransactionSynchronizationManager.registerSynchronization(
-                    new TransactionSynchronization() {
-                        @Override
-                        public void afterCommit() {
-                            try {
+                TransactionSynchronizationManager.registerSynchronization(
+                        new TransactionSynchronization() {
+                            @Override
+                            public void afterCommit() {
                                 eventPublisher.publishOrderCreated(orderId);
-                            } catch (Exception ex) {
-                                throw ex;
                             }
                         }
-                    }
-            );
+                );
 
-            return orderId;
-        });
+                return orderId;
+            });
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
 }

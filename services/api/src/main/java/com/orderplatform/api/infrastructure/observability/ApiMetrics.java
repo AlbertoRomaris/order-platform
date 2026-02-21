@@ -5,15 +5,13 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import org.springframework.stereotype.Component;
 
-import java.util.concurrent.TimeUnit;
-
 @Component
 public class ApiMetrics {
 
     private final MeterRegistry registry;
 
-    public final Counter ordersCreatedTotal;
-    public final Timer createOrderTimer;
+    private final Counter ordersCreatedTotal;
+    private final Timer createOrderTimer;
 
     public ApiMetrics(MeterRegistry registry) {
         this.registry = registry;
@@ -28,19 +26,34 @@ public class ApiMetrics {
                 .register(registry);
     }
 
-    public void eventPublished(String transport) {
-        Counter.builder("order_api_events_published_total")
-                .description("Total number of order events published successfully by the API")
-                .tag("transport", transport)
-                .register(registry)
-                .increment();
+    public void incOrdersCreated() {
+        ordersCreatedTotal.increment();
     }
 
-    public void eventPublishFailed(String transport) {
-        Counter.builder("order_api_event_publish_failed_total")
-                .description("Total number of order event publish failures in the API")
-                .tag("transport", transport)
-                .register(registry)
-                .increment();
+    public <T> T recordCreateOrder(java.util.concurrent.Callable<T> callable) throws Exception {
+        return createOrderTimer.recordCallable(callable);
+    }
+
+    public void incEventPublished(String transport) {
+        registry.counter(
+                "order_api_events_published_total",
+                "transport", normalizeTransport(transport)
+        ).increment();
+    }
+
+    public void incEventPublishFailed(String transport) {
+        registry.counter(
+                "order_api_event_publish_failed_total",
+                "transport", normalizeTransport(transport)
+        ).increment();
+    }
+
+    private String normalizeTransport(String transport) {
+        if (transport == null) return "unknown";
+        String t = transport.trim().toLowerCase();
+        return switch (t) {
+            case "sqs", "outbox" -> t;
+            default -> "unknown";
+        };
     }
 }

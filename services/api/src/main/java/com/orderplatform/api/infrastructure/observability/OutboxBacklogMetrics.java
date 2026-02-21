@@ -17,6 +17,10 @@ public class OutboxBacklogMetrics {
         Gauge.builder("order_api_outbox_processing", () -> countProcessing(jdbcTemplate))
                 .description("Number of outbox events currently locked/processing (PROCESSING)")
                 .register(registry);
+
+        Gauge.builder("order_api_outbox_oldest_pending_age_seconds", () -> oldestPendingAgeSeconds(jdbcTemplate))
+                .description("Age in seconds of the oldest outbox event still pending (PENDING or PROCESSING)")
+                .register(registry);
     }
 
     private static double countBacklog(JdbcTemplate jdbcTemplate) {
@@ -33,5 +37,17 @@ public class OutboxBacklogMetrics {
                 Integer.class
         );
         return n == null ? 0.0 : n.doubleValue();
+    }
+
+    private static double oldestPendingAgeSeconds(JdbcTemplate jdbcTemplate) {
+        Double seconds = jdbcTemplate.queryForObject(
+                """
+                select extract(epoch from (now() - min(created_at)))
+                from order_outbox
+                where status in ('PENDING','PROCESSING')
+                """,
+                Double.class
+        );
+        return seconds == null ? 0.0 : seconds;
     }
 }

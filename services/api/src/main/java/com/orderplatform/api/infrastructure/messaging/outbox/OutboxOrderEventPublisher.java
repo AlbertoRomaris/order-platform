@@ -32,8 +32,8 @@ public class OutboxOrderEventPublisher implements OrderEventPublisher {
         String correlationId = MDC.get("correlationId");
 
         String payload = """
-        {"orderId":"%s","correlationId":%s}
-        """.formatted(
+    {"orderId":"%s","correlationId":%s}
+    """.formatted(
                 orderId,
                 correlationId == null ? "null" : "\"" + correlationId + "\""
         ).trim();
@@ -42,10 +42,10 @@ public class OutboxOrderEventPublisher implements OrderEventPublisher {
 
         try {
             outboxRepository.enqueue(event);
-            apiMetrics.eventPublished("outbox");
+            apiMetrics.incEventPublished("outbox");
             log.info("Enqueued OrderCreated event for order {} into outbox", orderId);
         } catch (Exception ex) {
-            apiMetrics.eventPublishFailed("outbox");
+            apiMetrics.incEventPublishFailed("outbox");
             throw ex;
         }
     }

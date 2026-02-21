@@ -54,10 +54,10 @@ public class SqsOrderEventPublisher implements OrderEventPublisher {
 
         try {
             sqsClient.sendMessage(req.build());
-            apiMetrics.eventPublished("sqs");
+            apiMetrics.incEventPublished("sqs");
             log.info("Published OrderCreated to SQS. orderId={}", orderId);
         } catch (Exception ex) {
-            apiMetrics.eventPublishFailed("sqs");
+            apiMetrics.incEventPublishFailed("sqs");
             throw ex;
         }
     }

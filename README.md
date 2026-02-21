@@ -115,6 +115,7 @@ but prepares the architecture for production-grade observability in V3.
 - Spring Boot Actuator enabled in both API and Worker
 - Prometheus-compatible metrics endpoint (`/actuator/prometheus`)
 - Business-level metrics (orders created, events processed, retries, failures)
+- Polling and transport-layer visibility (poll cycles, poll errors, SQS receive/delete)
 - Transport-aware metrics (SQS vs Outbox)
 - Outbox backlog visibility via database-backed gauges
 - Worker processing latency measurements
@@ -126,6 +127,7 @@ but prepares the architecture for production-grade observability in V3.
 - Infrastructure concerns remain in adapters/infrastructure layer
 - Transport pluggability is now observable via metrics
 - Enables operational reasoning (backlog growth, retry storms, worker liveness)
+- Low-cardinality metric design to prevent monitoring system overload
 - Establishes the foundation for production monitoring in V3
 
 📄 Documentation:

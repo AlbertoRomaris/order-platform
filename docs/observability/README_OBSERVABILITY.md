@@ -109,7 +109,7 @@ Why this matters:
 ## 2. Orders Created Counter
 
 
-**`order_api_orders_total`**
+**`order_api_orders_created_total`**
 
 
 Type: `counter`
@@ -197,6 +197,23 @@ Together with backlog, this gives a full picture of asynchronous health.
 
 ---
 
+## 6. Outbox Oldest Pending Age
+
+`order_api_outbox_oldest_pending_age_seconds`
+
+Type: `gauge`
+
+Age in seconds of the oldest outbox event still pending (PENDING or PROCESSING).
+
+Why this matters:
+
+- Detects “old backlog” (events not being drained)
+- Helps identify stuck processing/locks (very old PROCESSING rows)
+- Provides a simple health signal without dashboards/alerts
+
+
+---
+
 # Worker Observability
 
 The worker represents the asynchronous execution side.
@@ -212,13 +229,14 @@ Its metrics answer:
 
 ---
 
-## 1. Poll Cycle Counter
+## 1. Poll Cycle Counter (Tagged)
 
 
-`order_worker_poll_total`
+`order_worker_poll_total{mode="sqs|outbox"}`
 
+Type: `counter`
 
-Counts worker poll cycles (SQS or outbox).
+Counts worker poll cycles by mode (SQS or outbox).
 
 Why this matters:
 
@@ -228,11 +246,34 @@ Why this matters:
 
 ---
 
-## 2. Messages Received
+## 2. Poll Errors (Tagged, Low Cardinality)
+
+
+`order_worker_poll_errors_total{mode="sqs|outbox", error="sql|unknown"}`
+
+Type: `counter`
+
+Counts poll failures by mode and coarse error type.
+
+Why this matters:
+
+- detects DB connectivity/SQL issues for outbox polling
+- detects SQS receive failures
+- supports clean alerting later (V3) without exploding cardinality
+
+**Important**:
+
+- error values are application-controlled (small stable set)
+- this is not tied to DLQ reason fields
+
+---
+
+## 3. Messages Received
 
 
 `order_worker_messages_received_total`
 
+Type: `counter`
 
 Counts events/messages fetched from transport.
 
@@ -244,57 +285,70 @@ Why this matters:
 
 ---
 
-## 3. Messages Processed
+## 4. Messages Processed / Failed / Retried
 
 
 `order_worker_messages_processed_total`
-
-
-Counts successful processing attempts.
-
-Why this matters:
-
-- Confirms state transitions
-- Enables throughput comparison with API
-
----
-
-## 4. Retry & Failure Metrics
-
-
 `order_worker_messages_failed_total`
 `order_worker_messages_retried_total`
 
+Type: `counter`
+
+Counts processing attempts grouped by outcome:
+
+- successful processing
+- failed attempts
+- retry attempts
 
 Why this matters:
 
-- Detect instability
-- Detect increased failure probability
-- Reveal misconfiguration
+- detect instability
+- detect increased failure probability
+- reveal misconfiguration
+- compare worker throughput to API throughput
 
 ---
 
-## 5. Business DLQ Metric
+## 5. Terminal Failures (Not Real DLQ)
 
 
-`order_worker_business_dlq_total`
+`order_worker_terminal_failures_total{transport="sqs"}`
 
+Type: `counter`
 
-Counts business-level DLQ entries.
+Represents terminal failures from our business logic when using SQS transport.
+These messages are expected to end up in an SQS DLQ via redrive policy after maxReceiveCount,
+but the application does not observe the actual DLQ move.
 
-Represents domain failure, not infrastructure failure.
+Why this matters:
+
+- honest signal (“we consider this terminal”)
+- avoids mislabeling as “DLQ real count”
+- complements CloudWatch SQS DLQ metrics (V3)
+
+**Note**: previously documented as order_worker_sqs_dlq_total.
+Current metric name is order_worker_terminal_failures_total{transport="sqs"}.
 
 ---
 
-## 6. SQS DLQ Metric
+## 6. SQS Receive & Delete Counters
 
 
-`order_worker_sqs_dlq_total`
+`order_worker_sqs_receive_total`
+`order_worker_sqs_receive_empty_total`
+`order_worker_sqs_delete_total`
+`order_worker_sqs_delete_failed_total`
+
+Type: `counter`
 
 
-Represents infrastructure-level DLQ (when using SQS).
+Why this matters:
 
-Business DLQ and Infrastructure DLQ remain intentionally decoupled.
+- receive_total confirms polling activity against SQS
+- receive_empty_total helps validate queue emptiness vs consumer misbehavior
+- delete_total confirms that processed messages are being properly deleted from SQS (acknowledged)
+- delete_failed_total highlights the “received but not deleted” risk (duplicates / unexpected retries / DLQ)
+
 
 ---
 
@@ -303,16 +357,15 @@ Business DLQ and Infrastructure DLQ remain intentionally decoupled.
 
 `order_worker_processing_seconds`
 
-
 Type: `summary`
 
-Measures time spent processing a single order.
+Measures time spent processing a single message/event.
 
 Why this matters:
 
-- Detect slow domain logic
-- Detect database latency
-- Detect blocking I/O
+- detect slow domain logic
+- detect database latency
+- detect blocking I/O
 
 ---
 
@@ -338,7 +391,7 @@ V2.6 enables practical demonstrations:
 1. Stop the worker → create orders → backlog increases.
 2. Start the worker → backlog drains.
 3. Increase failureProbability → retries increase.
-4. Force failures → DLQ counters increase.
+4. Force terminal failures → terminal failure counter increases.
 5. Switch transport mode → metrics reflect transport change.
 
 The system is no longer a black box.
@@ -380,7 +433,7 @@ With V2.6, the platform now includes:
 - Event-driven architecture
 - Transactional outbox
 - Separate worker service
-- Dual DLQ design
+- Explicit terminal failure handling (business-level vs transport-level concerns)
 - SQS cloud-ready transport
 - Minimal but meaningful observability layer
 
