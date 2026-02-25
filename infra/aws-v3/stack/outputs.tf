@@ -77,3 +77,13 @@ output "rds_db_name" {
   value       = aws_db_instance.postgres.db_name
   description = "Database name."
 }
+
+output "api_service_name" {
+  value       = aws_ecs_service.api.name
+  description = "ECS service name for the API."
+}
+
+output "api_task_definition_arn" {
+  value       = aws_ecs_task_definition.api.arn
+  description = "Task definition ARN for the API."
+}

@@ -51,3 +51,21 @@ variable "db_password" {
   description = "PostgreSQL master password."
   sensitive   = true
 }
+
+variable "api_image" {
+  type        = string
+  description = "API container image (ECR image URI)."
+  default     = "583880312081.dkr.ecr.eu-west-1.amazonaws.com/order-platform-dev-v3-api:latest"
+}
+
+variable "api_container_port" {
+  type        = number
+  description = "API container port."
+  default     = 8080
+}
+
+variable "api_desired_count" {
+  type        = number
+  description = "Desired number of API tasks."
+  default     = 1
+}
