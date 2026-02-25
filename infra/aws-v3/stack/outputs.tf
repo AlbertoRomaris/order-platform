@@ -57,3 +57,23 @@ output "api_target_group_arn" {
   value       = aws_lb_target_group.api.arn
   description = "Target group ARN for the API."
 }
+
+output "private_subnet_ids" {
+  value       = [for s in aws_subnet.private : s.id]
+  description = "Private subnet IDs for V3."
+}
+
+output "rds_endpoint" {
+  value       = aws_db_instance.postgres.address
+  description = "RDS endpoint address."
+}
+
+output "rds_port" {
+  value       = aws_db_instance.postgres.port
+  description = "RDS port."
+}
+
+output "rds_db_name" {
+  value       = aws_db_instance.postgres.db_name
+  description = "Database name."
+}
