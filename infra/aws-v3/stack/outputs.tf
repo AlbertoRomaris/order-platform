@@ -22,3 +22,18 @@ output "log_group_worker" {
   value       = aws_cloudwatch_log_group.worker.name
   description = "CloudWatch log group name for Worker."
 }
+
+output "vpc_id" {
+  value       = aws_vpc.main.id
+  description = "VPC ID for V3."
+}
+
+output "public_subnet_ids" {
+  value       = [for s in aws_subnet.public : s.id]
+  description = "Public subnet IDs for V3."
+}
+
+output "public_route_table_id" {
+  value       = aws_route_table.public.id
+  description = "Public route table ID."
+}
