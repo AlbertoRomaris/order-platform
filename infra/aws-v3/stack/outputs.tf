@@ -37,3 +37,23 @@ output "public_route_table_id" {
   value       = aws_route_table.public.id
   description = "Public route table ID."
 }
+
+output "alb_dns_name" {
+  value       = aws_lb.api.dns_name
+  description = "Public DNS name of the Application Load Balancer."
+}
+
+output "alb_security_group_id" {
+  value       = aws_security_group.alb.id
+  description = "Security group ID for the ALB."
+}
+
+output "api_security_group_id" {
+  value       = aws_security_group.api.id
+  description = "Security group ID for API tasks."
+}
+
+output "api_target_group_arn" {
+  value       = aws_lb_target_group.api.arn
+  description = "Target group ARN for the API."
+}
