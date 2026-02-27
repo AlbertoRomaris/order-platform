@@ -107,3 +107,8 @@ output "order_events_dlq_arn" {
   value       = aws_sqs_queue.order_events_dlq.arn
   description = "SQS DLQ ARN for order events."
 }
+
+output "worker_service_name" {
+  value       = aws_ecs_service.worker.name
+  description = "ECS service name for the Worker."
+}

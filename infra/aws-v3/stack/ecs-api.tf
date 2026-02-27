@@ -52,8 +52,22 @@ resource "aws_ecs_task_definition" "api" {
         { name = "SPRING_DATASOURCE_USERNAME", value = var.db_username },
         { name = "SPRING_DATASOURCE_PASSWORD", value = var.db_password },
 
-        # Keep default mode outbox until V3.3 (SQS exists)
-        { name = "ORDER_EVENTS_MODE", value = "outbox" }
+        { name = "ORDER_EVENTS_MODE", value = "sqs" },
+
+        {
+          name = "SPRING_APPLICATION_JSON",
+          value = jsonencode({
+            aws = {
+              region = var.aws_region
+              sqs = {
+                queueUrl = aws_sqs_queue.order_events.url
+              }
+            }
+          })
+        },
+
+        { name = "AWS_REGION", value = var.aws_region },
+        { name = "AWS_DEFAULT_REGION", value = var.aws_region }
       ]
 
       logConfiguration = {
@@ -68,12 +82,35 @@ resource "aws_ecs_task_definition" "api" {
   ])
 }
 
+resource "aws_iam_policy" "api_sqs" {
+  name = "${local.name_prefix}-api-sqs"
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Effect   = "Allow",
+      Action   = [
+        "sqs:SendMessage",
+        "sqs:GetQueueAttributes"
+      ],
+      Resource = aws_sqs_queue.order_events.arn
+    }]
+  })
+}
+
+
+resource "aws_iam_role_policy_attachment" "api_sqs_attach" {
+  role       = aws_iam_role.api_task.name
+  policy_arn = aws_iam_policy.api_sqs.arn
+}
+
 resource "aws_ecs_service" "api" {
   name            = "${local.name_prefix}-api-svc"
   cluster         = aws_ecs_cluster.this.id
   task_definition = aws_ecs_task_definition.api.arn
   desired_count   = var.api_desired_count
   launch_type     = "FARGATE"
+  health_check_grace_period_seconds = 180
 
   network_configuration {
     subnets          = [for s in aws_subnet.public : s.id]
