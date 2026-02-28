@@ -1,0 +1,5 @@
+# Example terraform.tfvars file
+# Copy this to terraform.tfvars and fill in real values
+
+db_password  = "CHANGE_ME"
+alerts_email = "your_email@example.com"

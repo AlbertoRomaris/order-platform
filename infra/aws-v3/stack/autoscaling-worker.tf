@@ -1,17 +1,14 @@
-# Autoscaling target: ECS worker desired count
 resource "aws_appautoscaling_target" "worker" {
   service_namespace  = "ecs"
   scalable_dimension = "ecs:service:DesiredCount"
 
-  # Formato requerido por Application Auto Scaling:
-  # service/<cluster-name>/<service-name>
+
   resource_id = "service/${aws_ecs_cluster.this.name}/${aws_ecs_service.worker.name}"
 
   min_capacity = 1
   max_capacity = 5
 }
 
-# Scale OUT policy (step scaling)
 resource "aws_appautoscaling_policy" "worker_scale_out" {
   name               = "${local.name_prefix}-worker-scale-out"
   policy_type        = "StepScaling"
@@ -32,7 +29,6 @@ resource "aws_appautoscaling_policy" "worker_scale_out" {
   }
 }
 
-# Scale IN policy (step scaling)
 resource "aws_appautoscaling_policy" "worker_scale_in" {
   name               = "${local.name_prefix}-worker-scale-in"
   policy_type        = "StepScaling"
@@ -45,7 +41,7 @@ resource "aws_appautoscaling_policy" "worker_scale_in" {
     cooldown                = 120
     metric_aggregation_type = "Average"
 
-    # Con backlog vacío de forma sostenida, bajamos 1 task (hasta min_capacity)
+
     step_adjustment {
       metric_interval_upper_bound = 0
       scaling_adjustment          = -1
@@ -53,9 +49,8 @@ resource "aws_appautoscaling_policy" "worker_scale_in" {
   }
 }
 
-# Alarm: backlog alto => scale out
 resource "aws_cloudwatch_metric_alarm" "sqs_backlog_high" {
-  alarm_name          = "${local.name_prefix}-sqs-backlog-high"
+  alarm_name = "${local.name_prefix}-scaleout-sqs-backlog-high"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 2
   period              = 60
@@ -73,9 +68,8 @@ resource "aws_cloudwatch_metric_alarm" "sqs_backlog_high" {
   alarm_actions = [aws_appautoscaling_policy.worker_scale_out.arn]
 }
 
-# Alarm: backlog vacío => scale in (conservador para evitar flapping)
 resource "aws_cloudwatch_metric_alarm" "sqs_backlog_low" {
-  alarm_name          = "${local.name_prefix}-sqs-backlog-low"
+  alarm_name = "${local.name_prefix}-scalein-sqs-backlog-empty"
   comparison_operator = "LessThanOrEqualToThreshold"
   evaluation_periods  = 5
   period              = 60

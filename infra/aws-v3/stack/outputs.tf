@@ -112,3 +112,27 @@ output "worker_service_name" {
   value       = aws_ecs_service.worker.name
   description = "ECS service name for the Worker."
 }
+
+output "sns_alerts_topic_arn" {
+  value = aws_sns_topic.alerts.arn
+}
+
+output "alarm_dlq_nonempty_name" {
+  value = aws_cloudwatch_metric_alarm.sqs_dlq_nonempty.alarm_name
+}
+
+output "alarm_alb_5xx_name" {
+  value = aws_cloudwatch_metric_alarm.alb_5xx.alarm_name
+}
+
+output "alarm_tg_5xx_name" {
+  value = aws_cloudwatch_metric_alarm.alb_target_5xx.alarm_name
+}
+
+output "alarm_api_error_spike_name" {
+  value = aws_cloudwatch_metric_alarm.api_error_spike.alarm_name
+}
+
+output "alarm_worker_failed_name" {
+  value = aws_cloudwatch_metric_alarm.worker_failed_alarm.alarm_name
+}
