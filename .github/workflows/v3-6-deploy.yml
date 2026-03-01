@@ -2,7 +2,7 @@ name: V3.6 Deploy (ECR + ECS Rolling Update)
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "master" ]
   workflow_dispatch:
 
 permissions:
