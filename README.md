@@ -135,17 +135,79 @@ but prepares the architecture for production-grade observability in V3.
 
 ---
 
-### Planned Deployments
+---
 
-#### 🔜 V3 – Production-like Cloud Architecture
-Planned.
+#### ✅ V3 – Production-like Cloud Architecture
+Completed.
 
-- ECS / Fargate
-- Application Load Balancer (ALB)
-- RDS PostgreSQL
-- Auto-scaling workers
-- Metrics, logs, and alerts
-- CI/CD basics
+V3 elevates the platform from a cloud-ready architecture (V2)
+to a fully managed, production-like cloud system running on AWS.
+
+This version does not introduce new business features.
+Instead, it validates that the existing clean architecture
+operates correctly under real cloud infrastructure constraints.
+
+The focus shifts from **architectural correctness** (V2)
+to **cloud operability, scalability, and operational discipline**.
+
+---
+
+### Infrastructure Scope
+
+- Terraform-managed AWS infrastructure (`infra/aws-v3`)
+- Remote Terraform backend (S3 + DynamoDB locking)
+- ECS Fargate cluster (API + Worker services)
+- Application Load Balancer (public entry point)
+- RDS PostgreSQL (private subnets)
+- Amazon SQS (main queue + infrastructure DLQ)
+- IAM Task Roles (least privilege model)
+- CloudWatch Logs, metrics, alarms, and dashboard
+- EventBridge-based worker lifecycle monitoring
+- Autoscaling driven by SQS backlog
+- GitHub Actions CI/CD pipeline (OIDC authentication, no static credentials)
+
+---
+
+### Architectural Significance
+
+- Preserves full separation between domain and cloud infrastructure
+- Validates transport pluggability (DB outbox → SQS) without business logic changes
+- Demonstrates managed compute (ECS Fargate) instead of VM-based runtime
+- Replaces containerized database with managed RDS
+- Implements dual DLQ model in real AWS environment
+- Introduces workload-driven horizontal scaling
+- Adds multi-layer observability (application + infrastructure)
+- Enforces IAM least-privilege and OIDC-based deployment security
+- Establishes reproducible infrastructure via remote-state Terraform
+
+---
+
+### Operational Characteristics Achieved
+
+- Stateless API and Worker services
+- Horizontal worker scaling based on queue backlog
+- Infrastructure-level and business-level failure separation
+- End-to-end deployment automation
+- Deterministic infrastructure provisioning
+- Multi-layer failure detection (metrics + events)
+- Cost-aware network design (no NAT in dev)
+- Explicit risk and limitation boundaries
+
+---
+
+### Evolution Summary
+
+V3 completes the transition from:
+
+- V1 → In-process asynchronous architecture
+- V2 → Durable, database-backed distributed architecture
+- V2.5 → Cloud transport validation on AWS
+- V2.6 → Minimal observability foundation
+- V3 → Production-like, managed cloud system
+
+The system is now cloud-operable, horizontally scalable,
+fully reproducible, and operationally visible.
 
 📄 Documentation:
-- `docs/prod/README_V3.md` (coming soon)
+- [V3 – Production-like Cloud Architecture](docs/README_V3.md)
+
