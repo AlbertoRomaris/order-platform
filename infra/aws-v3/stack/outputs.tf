@@ -136,3 +136,11 @@ output "alarm_api_error_spike_name" {
 output "alarm_worker_failed_name" {
   value = aws_cloudwatch_metric_alarm.worker_failed_alarm.alarm_name
 }
+
+output "alb_arn_suffix" {
+  value = aws_lb.api.arn_suffix
+}
+
+output "api_target_group_arn_suffix" {
+  value = aws_lb_target_group.api.arn_suffix
+}
