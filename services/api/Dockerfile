@@ -2,6 +2,7 @@ FROM eclipse-temurin:17-jdk AS build
 WORKDIR /workspace
 
 COPY mvnw .
+RUN chmod +x mvnwRUN chmod +x mvnw
 COPY .mvn .mvn
 COPY pom.xml .
 RUN ./mvnw -q -DskipTests dependency:go-offline
