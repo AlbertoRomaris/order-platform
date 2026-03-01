@@ -1,0 +1,71 @@
+name: V3.6 Deploy (ECR + ECS Rolling Update)
+
+on:
+  push:
+    branches: [ "main" ]
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: eu-west-1
+  ACCOUNT_ID: "583880312081"
+
+  ECR_API_REPO: "order-platform-dev-v3-api"
+  ECR_WORKER_REPO: "order-platform-dev-v3-worker"
+
+  ECS_CLUSTER: "order-platform-dev-v3-cluster"
+  ECS_API_SERVICE: "order-platform-dev-v3-api-svc"
+  ECS_WORKER_SERVICE: "order-platform-dev-v3-worker-svc"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build & Push API image
+        run: |
+          ECR="${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_API_REPO}"
+          docker build -t "${ECR}:${GITHUB_SHA}" -t "${ECR}:api-main" ./api
+          docker push "${ECR}:${GITHUB_SHA}"
+          docker push "${ECR}:api-main"
+
+      - name: Build & Push Worker image
+        run: |
+          ECR="${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_WORKER_REPO}"
+          docker build -t "${ECR}:${GITHUB_SHA}" -t "${ECR}:worker-main" ./worker
+          docker push "${ECR}:${GITHUB_SHA}"
+          docker push "${ECR}:worker-main"
+
+      - name: Redeploy API service (rolling update)
+        run: |
+          aws ecs update-service \
+            --cluster "${ECS_CLUSTER}" \
+            --service "${ECS_API_SERVICE}" \
+            --force-new-deployment
+
+      - name: Redeploy Worker service (rolling update)
+        run: |
+          aws ecs update-service \
+            --cluster "${ECS_CLUSTER}" \
+            --service "${ECS_WORKER_SERVICE}" \
+            --force-new-deployment
+
+      - name: Wait for services to be stable
+        run: |
+          aws ecs wait services-stable \
+            --cluster "${ECS_CLUSTER}" \
+            --services "${ECS_API_SERVICE}" "${ECS_WORKER_SERVICE}"
