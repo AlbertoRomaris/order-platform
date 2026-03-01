@@ -1,884 +1,613 @@
-# V3 – Production-Like Cloud Architecture
+# V3 – Production-Like Cloud Architecture on AWS
 
-## Overview
+## Executive Summary
 
-Version 3 evolves the platform from a validated cloud runtime (V2.5)
-into a **production-like, cloud-native architecture on AWS**.
+Version 3 transforms the Event-Driven Order Platform from a cloud-ready distributed system (V2) into a production-like, fully managed cloud architecture running on AWS.
 
-This version does not introduce new business features.
+No new business capabilities are introduced in this version.
 
-Instead, it demonstrates:
+Instead, V3 validates that:
 
-- Cloud-native deployment patterns
-- Managed infrastructure services
-- Secure runtime configuration
-- Horizontal scalability
-- Infrastructure as Code (Terraform)
-- Operational readiness
+- The domain architecture survives real cloud constraints.
+- Infrastructure can be provisioned reproducibly via Terraform.
+- The system scales horizontally under load.
+- Failures are observable and actionable.
+- Security boundaries are enforced through IAM and network isolation.
+- Deployments are automated and traceable.
+- Operational behavior is measurable and predictable.
 
-The core domain remains unchanged and framework-agnostic.
-
----
-
-# Objectives of V3
-
-V3 exists to demonstrate production-level architectural thinking.
-
-Specifically, V3 proves that:
-
-- The same clean core can run on fully managed cloud infrastructure
-- Infrastructure concerns are isolated from business logic
-- The system can scale horizontally
-- Runtime behavior is observable and operable
-- Deployment is reproducible via Infrastructure as Code
-- Cloud security best practices are applied
-
-This is not about adding complexity.
-It is about demonstrating architectural maturity.
+V2 proved architectural correctness.
+V3 proves operational readiness.
 
 ---
 
-# Architectural Philosophy
+# Architectural Continuity
 
-The principles from V1 and V2 still apply:
+V3 does not alter the core architecture introduced in V2.
 
-- Database is the source of truth
-- Core is framework-agnostic
-- No cloud SDK logic in domain
-- Ports & Adapters architecture
-- Explicit state machine
-- Retry + DLQ semantics
-- Correlation ID end-to-end
-- Observability without polluting domain
+The following principles remain intact:
 
-V3 extends those principles into a real cloud environment.
+- Database as the source of truth.
+- Ports & Adapters (Hexagonal Architecture).
+- Framework-agnostic core module.
+- No AWS SDK dependencies in the domain layer.
+- Explicit state machine for order lifecycle.
+- Deterministic retry semantics.
+- Dual DLQ separation (business vs infrastructure).
+- End-to-end Correlation ID propagation.
+
+The only runtime transport change is:
+
+```
+worker.mode = sqs-consumer
+```
+
+This changes how events are delivered — not how business logic behaves.
+
+The core domain remains unaware of:
+
+- ECS
+- SQS
+- RDS
+- CloudWatch
+- IAM
+
+Cloud infrastructure is treated strictly as an adapter.
 
 ---
 
-# High-Level Architecture (V3)
+# System Architecture Overview
+
+## High-Level Topology
 
 ```
 Internet
-|
-v
+    ↓
 Application Load Balancer (public subnets)
-|
-v
-ECS Fargate (API Service - private subnets)
-ECS Fargate (Worker Service - private subnets)
-|
-v
+    ↓
+ECS Fargate – API Service
+ECS Fargate – Worker Service
+    ↓
 Amazon RDS PostgreSQL (private subnets)
-|
-v
+    ↓
 Amazon SQS (Main Queue)
-|
-v
+    ↓
 SQS Dead Letter Queue
 ```
 
 ---
 
-# Key Differences vs V2.5
+## Responsibility Boundaries
 
-| V2.5 | V3 |
-|------|----|
-| Single EC2 | Fully managed ECS Fargate |
-| Postgres container | Managed RDS PostgreSQL |
-| No load balancer | ALB with health checks |
-| Manual scaling | Auto-scaling workers |
-| Minimal observability | CloudWatch dashboards & alarms |
-| Manual deployment | CI/CD pipeline |
+| Component | Responsibility |
+|------------|----------------|
+| ALB | Public HTTP entry, TLS termination, health checks |
+| ECS API | Command handling, persistence, event publication |
+| ECS Worker | Asynchronous order processing |
+| RDS | Persistent state and transactional integrity |
+| SQS | Decoupled event transport and retry mechanism |
+| SQS DLQ | Infrastructure failure isolation |
+| Database DLQ | Business-level failure persistence |
 
----
-
-# Core Runtime Mode in V3
-
-In V3, the primary transport mode is:
-
-`worker.mode = sqs-consumer`
-
-
-Why:
-
-- Horizontally scalable
-- Managed retry semantics
-- Real cloud-native transport
-- Aligns with AWS production patterns
-
-The database outbox mode remains available for local execution,
-but is not the primary runtime in V3.
+Each layer has a single clear responsibility.
 
 ---
 
-# V3 Phases
+# Infrastructure as Code Strategy
 
-V3 is implemented incrementally.
+All infrastructure is provisioned via Terraform under:
 
-Each phase has a clear Definition of Done.
+```
+infra/aws-v3
+```
 
----
-
-## V3.0 – Infrastructure Foundation
-
-### Scope
-
-- New Terraform stack (`infra/aws-v3`)
-- Remote Terraform backend (S3 + DynamoDB lock)
-- ECR repositories (API + Worker)
-- ECS Cluster
-- CloudWatch Log Groups
-- Naming and tagging strategy
-
-### Why
-
-Establish reproducible, production-grade infrastructure management.
-
-### Definition of Done
-
-- `terraform apply` creates:
-    - ECR repos
-    - ECS cluster
-    - Log groups
-- Remote backend configured
-- No state stored locally
+The infrastructure is intentionally separated into two layers.
 
 ---
 
-## V3.1 – API Service on ECS + ALB
+## Bootstrap Layer
 
-### Scope
+Purpose: enable safe Terraform collaboration.
 
-- VPC (public + private subnets)
-- Application Load Balancer
-- Target group
-- ECS Fargate service (API)
-- Health checks (`/actuator/health`)
-- Security Groups (least privilege)
-- Logs flowing to CloudWatch
+Resources:
 
-### Why
+- S3 bucket for remote Terraform state.
+- Versioning enabled.
+- Server-side encryption enabled.
+- Public access blocked.
+- DynamoDB table for state locking.
 
-Demonstrates production-standard API deployment.
+### Design Rationale
 
-### Definition of Done
+Remote state with locking ensures:
 
-- Public ALB URL returns `200 OK`
-- ECS service stable
-- Logs visible in CloudWatch
+- No concurrent state corruption.
+- Deterministic apply operations.
+- State version recovery.
+- No reliance on local state files.
 
----
-
-## V3.2 – RDS PostgreSQL
-
-### Scope
-
-- RDS PostgreSQL (private subnets)
-- DB Subnet Group
-- Security Group (ECS → RDS only)
-- Secrets in SSM Parameter Store or Secrets Manager
-- Flyway migrations executed at startup
-
-### Why
-
-Replaces containerized database with managed service.
-
-### Definition of Done
-
-- API connects to RDS
-- Migrations applied
-- RDS not publicly accessible
+Without this layer, infrastructure changes would not be production-safe.
 
 ---
 
-## V3.3 – Worker on ECS + SQS End-to-End
+## Stack Layer
 
-### Scope
+The stack provisions runtime infrastructure:
 
-- SQS main queue
-- SQS DLQ with redrive policy
-- ECS Worker service (Fargate)
-- IAM Task Roles:
-    - API: SendMessage
-    - Worker: Receive/Delete
-- End-to-end processing pipeline
+- VPC and networking
+- ECS cluster and services
+- RDS database
+- SQS queues
+- IAM roles and policies
+- CloudWatch alarms and metrics
+- SNS notifications
+- Autoscaling policies
 
-### Why
-
-Demonstrates event-driven architecture at cloud scale.
-
-### Definition of Done
-
-- Create order via ALB
-- Event appears in SQS
-- Worker processes event
-- Order state transitions in RDS
-- DLQ configured correctly
+Infrastructure is declarative, version-controlled, and reproducible.
 
 ---
 
-## V3.4 – Monitoring & Alerting
+# Networking & Security Architecture
 
-### Scope
+## VPC Design
 
-- CloudWatch metrics (infra + application)
-- Log-based custom metrics
-- CloudWatch alarms (operational & scaling)
-- SNS email notifications
-- EventBridge alerts for ECS worker failures
-- Autoscaling observability tied to SQS backlog
+- Single VPC.
+- Public subnets for ALB.
+- Private subnets for RDS.
+- ECS tasks may run in public subnets (cost-aware tradeoff).
 
----
+### Cost Tradeoff: No NAT Gateway (Development Environment)
 
-### Why
+NAT Gateway is intentionally omitted to reduce recurring costs.
 
-Production-grade systems require:
+Implications:
 
-- Early detection of failures
-- Backlog awareness
-- Worker health visibility
-- Infrastructure degradation alerts
-- Elastic scaling tied to workload
+- ECS tasks may require public IP.
+- Outbound internet access is allowed.
+- Security enforced via Security Groups.
 
-This version introduces real operational observability, not just logs.
+This is acceptable for development environments.
+A production environment would typically include:
 
----
-
-## 1️⃣ Application Metrics (Log-Based Custom Metrics)
-
-**Namespace:** `order-platform-dev-v3/App`
-
-### 1.1 API Error Count
-
-- Source: CloudWatch Log Metric Filter
-- Pattern: `" ERROR "`
-- Metric Name: `ApiErrorCount`
-
-#### Alarm: `api-error-spike`
-
-| Property | Value |
-|----------|--------|
-| Statistic | Sum |
-| Period | 60s |
-| Threshold | > 5 |
-| Action | SNS alert |
-
-**Purpose**
-
-Detects sudden spikes of API errors (5+ errors per minute).
-
-Used to detect:
-
-- Broken deployment
-- Database failures
-- Runtime exceptions
-- Dependency outages
+- NAT Gateway
+- Private ECS tasks
+- Stricter egress control
 
 ---
 
-### 1.2 Worker Failed Count
+## Security Group Model
 
-- Source: Log Metric Filter
-- Pattern: `FAILED`
-- Metric Name: `WorkerFailedCount`
+Traffic flow:
 
-#### Alarm: `worker-failed`
+Internet → ALB → ECS → RDS
 
-| Property | Value |
-|----------|--------|
-| Threshold | > 0 |
-| Period | 60s |
-| Action | SNS |
+Rules enforced:
 
-**Purpose**
+- ALB allows inbound HTTP/HTTPS from internet.
+- ECS API allows inbound only from ALB.
+- ECS Worker has no public ingress.
+- RDS allows inbound only from ECS Security Groups.
+- No public DB access.
 
-Detects business-level failures:
-
-- Terminal failures
-- DLQ-bound failures
-- SQS delete failures
+Security is enforced at network boundaries.
 
 ---
 
-## 2️⃣ SQS Metrics
+# Compute Layer
 
-- Namespace: `AWS/SQS`
-- Metric: `ApproximateNumberOfMessagesVisible`
+## ECS Fargate
 
-### 2.1 Autoscaling – Scale Out
+Chosen over EC2 because:
 
-Alarm: `scaleout-sqs-backlog-high`
+- No instance management.
+- No patching responsibility.
+- Horizontal scaling built-in.
+- Clear separation of infrastructure and workload.
 
-| Property | Value |
-|----------|--------|
-| Threshold | > 10 |
-| Evaluation | 2 periods |
-| Period | 60s |
-| Action | Scale worker +1 |
+Tradeoff:
 
-When backlog grows above 10 → worker scales out.
+- Slightly higher cost than EC2.
+- Less granular tuning.
 
----
-
-### 2.2 Autoscaling – Scale In
-
-Alarm: `scalein-sqs-backlog-empty`
-
-| Property | Value |
-|----------|--------|
-| Threshold | ≤ 0 |
-| Evaluation | 5 periods |
-| Period | 60s |
-| Action | Scale worker -1 |
-
-When backlog remains empty → worker scales in.
-
-⚠️ This alarm being in `ALARM` when backlog = 0 is expected behavior.
+Appropriate for production-like managed architecture.
 
 ---
 
-### 2.3 Backlog High Sustained (Operational Alarm)
+## API Service
 
-Alarm: `queue-backlog-high-sustained`
+Characteristics:
 
-Purpose:
+- Stateless.
+- Health check endpoint exposed.
+- Publishes events to SQS.
+- Uses IAM Task Role for SendMessage permission.
 
-Detects sustained backlog even after scaling.
-
-Identifies:
-
-- Worker misconfiguration
-- Throughput bottlenecks
-- SQS processing issues
-
-Action: SNS notification.
+The API never processes business events.
 
 ---
 
-### 2.4 DLQ Non Empty
+## Worker Service
 
-Alarm: `dlq-nonempty`
+Characteristics:
 
-- Threshold: > 0
+- Stateless.
+- Consumes SQS via long polling.
+- Horizontally scalable.
+- Deletes message only after successful processing.
+- Uses IAM Task Role for Receive/Delete permission.
 
-Triggers when:
-
-- Messages exceed `maxReceiveCount`
-- Worker cannot process successfully
-
-This is a critical operational alert.
-
----
-
-## 3️⃣ ECS Worker Health (Event-Based Monitoring)
-
-Instead of relying on `RunningTaskCount`, worker lifecycle is monitored using EventBridge.
-
-### 3.1 ECS Task STOPPED
-
-Triggers when:
-
-- Worker task crashes
-- Task OOM
-- Deployment failure
-- Manual stop
-- Runtime crash
-
-Event Type:
-
-- `ECS Task State Change`
-- `lastStatus = STOPPED`
-
-Action: SNS notification.
+Designed to be duplicated safely.
 
 ---
 
-### 3.2 ECS Service / Deployment Events
+# Data Layer
 
-Triggers when:
+## Amazon RDS PostgreSQL
 
-- Service cannot place tasks
-- Deployment fails
-- Rollback occurs
-- Service instability detected
+Chosen over containerized database because:
 
-Event Types:
+- Managed backups.
+- Automated patching.
+- Durable storage.
+- Storage scaling.
+- Operational reliability.
 
-- `ECS Service Action`
-- `ECS Deployment State Change`
+RDS runs in private subnets.
+Not publicly accessible.
 
-Action: SNS notification.
+Flyway migrations run at application startup.
 
----
-
-## 4️⃣ ALB Metrics
-
-Namespace: `AWS/ApplicationELB`
-
-### 4.1 ALB 5xx
-
-Alarm: `alb-5xx`
-
-Detects:
-
-- API container failures
-- Target crashes
-- Upstream application errors
+Database remains the single source of truth.
 
 ---
 
-### 4.2 Target Group 5xx
+# Messaging Architecture
 
-Alarm: `tg-5xx`
+## SQS Main Queue
 
-Detects:
+Selected because:
 
-- Bad responses from API container
-- Application runtime failures
+- Fully managed.
+- Scales automatically.
+- Built-in retry via visibility timeout.
+- Decouples producer and consumer.
+- No broker maintenance required.
 
----
+Standard queue chosen over FIFO:
 
-### 4.3 Latency p95
-
-Alarm: `alb-latency-p95`
-
-Detects:
-
-- Performance degradation
-- Slow database responses
-- Resource exhaustion
+- Higher throughput.
+- Order ordering not required for this domain.
+- Lower operational constraints.
 
 ---
 
-## 5️⃣ RDS Metrics
+## SQS DLQ
 
-Namespace: `AWS/RDS`
+Configured with:
 
-### 5.1 CPU High
+- maxReceiveCount.
+- Redrive policy.
 
-Alarm: `rds-cpu-high`
+Used for infrastructure-level failure isolation.
 
-Detects:
-
-- Database overload
-- Query inefficiency
-- Capacity saturation
+Messages in DLQ require operational inspection.
 
 ---
 
-### 5.2 Free Storage Low
+# Dual DLQ Model
 
-Alarm: `rds-free-storage-low`
+Two distinct failure domains are preserved.
 
-Detects:
+## Infrastructure DLQ (SQS)
 
-- Impending disk exhaustion
-- Risk of database outage
+Handles:
 
----
+- Worker crashes.
+- Visibility timeout expirations.
+- Unexpected runtime failures.
 
-## 6️⃣ SNS Alerting
-
-All operational alarms and EventBridge rules publish to:
-
-`order-platform-dev-v3-alerts`
-
-Subscription:
-
-- Email (manually confirmed)
+AWS-managed.
 
 ---
 
-## 7️⃣ Autoscaling Configuration
+## Business DLQ (Database)
 
-ECS Service: `order-platform-dev-v3-worker-svc`
+Handles:
 
-| Property | Value |
-|----------|--------|
-| Min Capacity | 1 |
-| Max Capacity | 5 |
-| Adjustment Type | Step Scaling |
-| Cooldown | 30–120s |
+- Retry exhaustion.
+- Domain-specific failure classification.
 
-Scaling is driven by SQS backlog.
+Domain-managed.
 
----
+Separation ensures:
 
-## 8️⃣ Failure Coverage Matrix
-
-| Failure Scenario | Detection Mechanism |
-|------------------|--------------------|
-| Worker crash | EventBridge STOPPED event |
-| Worker deployment failure | ECS Service / Deployment event |
-| Worker stuck (not processing) | Backlog sustained alarm |
-| Business processing failure | WorkerFailedCount |
-| Messages dead-lettered | DLQ alarm |
-| API runtime errors | ApiErrorCount |
-| API broken deploy | ALB 5xx |
-| Database overload | RDS CPU |
-| Database storage risk | FreeStorage alarm |
-| Throughput increase | Autoscaling triggered |
+- No cloud leakage into core.
+- Clear operational ownership.
+- Clean architectural boundaries.
 
 ---
 
-## 9️⃣ Observability Level Achieved
+# Runtime Behavior
 
-The system now includes:
+## API Flow
 
-- Reactive alerting
-- Proactive degradation detection
-- Elastic scaling tied to workload
-- Infrastructure + application failure visibility
-- Operational maturity patterns
+1. Receive request.
+2. Validate input.
+3. Persist order (PENDING).
+4. Publish event to SQS.
+5. Return response.
 
-After V3.4 + Monitoring:
-
-- Core architecture stable
-- Infra production-like
-- Async workflow resilient
-- Elastic worker scaling
-- Real alerting
-- Real failure detection
-
-This system now resembles a small production backend.
-
-## ️ 🔟 CloudWatch Dashboard (Operational Visualization)
-
-### Overview
-
-A production-grade CloudWatch Dashboard is provisioned via Terraform:
-
-`order-platform-dev-v3-dashboard`
-
-The dashboard provides real-time visualization of:
-
-- Queue backlog health
-- Worker capacity vs desired state
-- API error signals
-- Infrastructure resource pressure
-- Traffic patterns
-- Throughput trends
-
-It complements alerting by enabling:
-
-- Root cause investigation
-- Capacity analysis
-- Scaling validation
-- Failure correlation across layers
+API does not process orders.
 
 ---
 
-## 10.1 SQS Monitoring
+## Worker Flow
 
-### SQS Backlog (Visible / InFlight)
+1. Poll SQS.
+2. Deserialize event.
+3. Inject Correlation ID.
+4. Execute use case.
+5. Transition order state.
+6. Delete SQS message.
 
-**Namespace:** `AWS/SQS`
+On failure:
 
-Metrics:
+- Message reappears.
+- Retry managed by SQS.
+- After threshold → DLQ.
 
-- `ApproximateNumberOfMessagesVisible`
-- `ApproximateNumberOfMessagesNotVisible`
-
-Purpose:
-
-- Detect processing bottlenecks
-- Observe worker throughput vs inflow
-- Validate autoscaling behavior
-
-Interpretation:
-
-| Signal | Meaning |
-|--------|----------|
-| Visible increasing | Worker under-provisioned |
-| NotVisible high | Messages being actively processed |
-| Visible sustained | Scaling misconfigured or worker stuck |
+Worker is idempotent and stateless.
 
 ---
 
-### DLQ Messages (Visible)
+# Observability Architecture
 
-Metric: `ApproximateNumberOfMessagesVisible`
+Observability spans multiple layers:
 
-Purpose:
-
-- Immediate visibility of terminal failures
-- Validate retry strategy behavior
-- Confirm DLQ alarm triggering
-
-DLQ > 0 is considered a critical operational signal.
+- Logs
+- Metrics
+- Alarms
+- Events
+- Dashboard
 
 ---
 
-## 10.2 Load Balancer Observability
+# Logging Strategy
 
-### HTTP 5XX (ALB + TargetGroup)
+- Structured logs.
+- Correlation ID preserved.
+- Separate Log Groups per service.
+- Retention: 7 days (cost-aware decision).
 
-**Namespace:** `AWS/ApplicationELB`
+Tradeoff:
 
-Metrics:
-
-- `HTTPCode_ELB_5XX_Count`
-- `HTTPCode_Target_5XX_Count`
-
-Purpose:
-
-- Detect broken deployments
-- Identify container-level failures
-- Distinguish infra-level vs application-level errors
+- Lower retention reduces cost.
+- Not suitable for forensic-grade audit.
 
 ---
 
-### ALB Latency p95 (TargetResponseTime)
+# Application Metrics
 
-Statistic: `p95`
-
-Purpose:
-
-- Performance degradation detection
-- Database slowness correlation
-- Resource pressure identification
-
-p95 is used instead of average to surface tail latency.
-
----
-
-### ALB RequestCount
-
-Metric: `RequestCount`
-
-Purpose:
-
-- Traffic pattern analysis
-- Correlate load with scaling events
-- Detect abnormal traffic spikes
-
----
-
-## 10.3 RDS Observability
-
-### RDS CPUUtilization
-
-**Namespace:** `AWS/RDS`
-
-Purpose:
-
-- Detect overload conditions
-- Identify inefficient queries
-- Capacity planning signal
-
----
-
-### RDS FreeStorageSpace
-
-Purpose:
-
-- Prevent disk exhaustion
-- Detect abnormal storage growth
-
-Disk exhaustion is considered a critical failure scenario.
-
----
-
-## 10.4 ECS Worker Capacity Monitoring
-
-### Desired vs Running Tasks
-
-**Namespace:** `ECS/ContainerInsights`
-
-Metrics:
-
-- `DesiredTaskCount`
-- `RunningTaskCount`
-
-Purpose:
-
-- Validate autoscaling behavior
-- Detect failed deployments
-- Identify placement issues
-
-Interpretation:
-
-| Scenario | Meaning |
-|----------|----------|
-| Desired > Running | ECS placement issue or container crash |
-| Desired increasing | Autoscaling triggered |
-| Running unstable | Worker crash loop |
-
-This provides operational visibility beyond EventBridge alerts.
-
----
-
-## 10.5 Application-Level Metrics
-
-**Namespace:** `order-platform-dev-v3/App`
-
-### WorkerActivity
-
-Custom metric derived from application logs.
-
-Purpose:
-
-- Confirm worker is actively processing messages
-- Validate throughput
-- Correlate processing with SQS backlog
-
-This metric complements SQS backlog signals.
-
-Future improvements may include:
+Derived via Log Metric Filters:
 
 - ApiErrorCount
 - WorkerFailedCount
-- OrdersProcessed
-- OrdersFailed
+
+Used to detect:
+
+- Broken deployments.
+- Business failure spikes.
+- Unexpected runtime exceptions.
 
 ---
 
-## 10.6 SQS Throughput
+# Infrastructure Metrics
 
-### NumberOfMessagesSent
+## ALB
 
-Purpose:
+- HTTPCode_ELB_5XX_Count
+- HTTPCode_Target_5XX_Count
+- TargetResponseTime p95
+- RequestCount
 
-- Monitor event production rate
-- Correlate traffic with processing capacity
-- Validate end-to-end flow
-
----
-
-## Dashboard Design Principles
-
-The dashboard follows production monitoring principles:
-
-- Infrastructure and application signals combined
-- Backlog + Throughput + Capacity triad
-- Tail latency preferred over averages
-- Visual confirmation of scaling behavior
-- Clear separation of layers (ALB / ECS / RDS / SQS / App)
+p95 chosen over average to surface tail latency.
 
 ---
 
-## Observability Model
+## SQS
 
-The system now includes:
+- ApproximateNumberOfMessagesVisible
+- ApproximateNumberOfMessagesNotVisible
 
-- Real-time visualization (Dashboard)
-- Reactive alerting (CloudWatch Alarms)
-- Event-driven health detection (EventBridge)
-- Elastic scaling observability
-- Failure correlation capability
+Used for:
 
-This ensures both:
-
-- Immediate alerting
-- Investigative depth
+- Backlog monitoring.
+- Scaling triggers.
+- Throughput validation.
 
 ---
 
-## Operational Maturity
+## RDS
 
-With the dashboard in place, operators can:
+- CPUUtilization
+- FreeStorageSpace
 
-- Identify root cause in minutes
-- Confirm autoscaling effectiveness
-- Detect saturation early
-- Correlate failures across components
-- Validate resilience mechanisms
+Used to detect:
 
-The platform now includes production-grade operational observability.
-
-
-
-
-## V3.6 – CI/CD Pipeline
-
-### Scope
-
-- GitHub Actions workflow
-- Docker build
-- Push to ECR
-- ECS rolling update
-- Preferably OIDC-based AWS authentication
-
-### Why
-
-Completes the production lifecycle.
-
-### Definition of Done
-
-- Push to main → deploy new version
-- ECS service updates successfully
+- Saturation.
+- Resource exhaustion.
 
 ---
 
-# Security Model in V3
+# Autoscaling Model
 
-- No static AWS credentials
-- IAM Task Roles for ECS services
-- Security groups with least privilege
-- RDS in private subnets
-- No direct database exposure
-- No hardcoded secrets
+Worker scaling driven by backlog.
 
----
+Scale-out when backlog increases.
+Scale-in when backlog remains empty.
 
-# Cost Considerations
+Step scaling selected over target tracking for explicit threshold control.
 
-To avoid unnecessary AWS charges:
+Min capacity: 1  
+Max capacity: 5
 
-- Proper resource tagging
-- Minimal instance sizes
-- Controlled NAT usage
-- Log retention limits
-- Explicit resource destruction when not needed
+Tradeoff:
 
-V3 is designed to remain within AWS free-tier or credit budgets.
+- Manual threshold tuning required.
+- More explicit control than target tracking.
 
 ---
 
-# Operational Capabilities Achieved in V3
+# Event-Based Health Monitoring
 
-With V3, the platform demonstrates:
+EventBridge monitors:
 
-- Managed compute (ECS Fargate)
-- Managed database (RDS)
-- Managed messaging (SQS)
-- Horizontal scaling
-- Infrastructure as Code
-- Secure credential management
-- Health checks & load balancing
-- Cloud-native observability
-- Deployment automation
+- ECS Task STOPPED
+- ECS Deployment failures
+- Service instability
 
-This elevates the project from
-“cloud-ready architecture”
-to
-“production-like cloud system”.
+Metrics alone cannot capture crash loops reliably.
+
+Event-driven monitoring closes that gap.
 
 ---
 
-# What V3 Intentionally Does NOT Add
+# Failure Detection Matrix
 
-- No distributed tracing
-- No OpenTelemetry
-- No Kafka
-- No Kubernetes
-- No multi-region deployment
-- No multi-account strategy
+| Failure | Detection |
+|----------|----------|
+| Worker crash | ECS STOPPED event |
+| Worker stuck | Sustained backlog alarm |
+| DLQ growth | DLQ alarm |
+| Business retry exhaustion | WorkerFailedCount |
+| API broken deploy | ALB 5xx |
+| DB overload | RDS CPU alarm |
+| Disk exhaustion | FreeStorage alarm |
 
-These belong to future evolutions.
-
-V3 focuses on correctness, clarity, and architectural discipline.
+This provides multi-layer detection coverage.
 
 ---
 
-# Final State After V3
+# Deployment Automation
 
-After completing V3, the Event-Driven Order Platform:
+## Authentication Model
 
-- Runs on fully managed AWS services
-- Preserves clean hexagonal architecture
-- Demonstrates distributed system design
-- Is horizontally scalable
-- Is operationally visible
-- Is reproducible via Terraform
-- Is deployable via CI/CD
+- OIDC provider configured.
+- IAM role scoped to repository and branch.
+- No static AWS credentials stored.
+- Short-lived STS credentials.
+
+Reduces blast radius and secret management risk.
+
+---
+
+## Build Strategy
+
+- Monorepo-aware multi-stage Docker builds.
+- Maven reactor.
+- Images tagged with commit SHA.
+- Deterministic artifacts.
+
+Ensures traceability and rollback capability.
+
+---
+
+## Deployment Strategy
+
+- Push to master triggers pipeline.
+- Image pushed to ECR.
+- ECS force-new-deployment.
+- Rolling replacement.
+- Health checks gate deployment success.
+
+Deployment validated only when:
+
+- rolloutState = COMPLETED
+- runningCount == desiredCount
+
+---
+
+# Security Model
+
+Security enforced at:
+
+## Identity Layer
+
+- Separate task roles.
+- Least privilege SQS permissions.
+- Restricted OIDC trust policy.
+
+## Network Layer
+
+- RDS private.
+- No public DB.
+- Controlled ingress via ALB.
+- No worker public exposure.
+
+## Secret Management
+
+- No secrets committed.
+- Runtime configuration externalized.
+- IAM over static credentials.
+
+---
+
+# Known Limitations
+
+The system intentionally does not include:
+
+- Multi-region failover.
+- Blue/green deployment.
+- Canary releases.
+- WAF integration.
+- Secrets rotation automation.
+- Distributed tracing.
+- Kubernetes orchestration.
+
+These are conscious exclusions to preserve clarity and scope.
+
+---
+
+# Risk Considerations
+
+- Single-region deployment.
+- No cross-AZ redundancy beyond AWS defaults.
+- Log retention limited.
+- Manual DLQ inspection required.
+- No rate limiting at ALB.
+
+Risks are understood and acceptable for current scope.
+
+---
+
+# Operational Characteristics Achieved
+
+The system demonstrates:
+
+- Managed compute.
+- Managed database.
+- Managed messaging.
+- Horizontal scaling.
+- Deterministic infrastructure provisioning.
+- Secure CI/CD authentication.
+- Failure detection coverage.
+- Workload-driven scaling.
+- Clean separation of domain and cloud concerns.
+
+---
+
+# Final State
+
+After V3, the Event-Driven Order Platform:
+
+- Runs on fully managed AWS services.
+- Preserves clean hexagonal architecture.
+- Separates business and infrastructure failure domains.
+- Scales horizontally with workload.
+- Detects failures across layers.
+- Is reproducible via Terraform.
+- Deploys automatically via CI/CD.
+
+V2 validated architecture.
+
+V3 validates cloud operability.
