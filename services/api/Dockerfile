@@ -1,18 +1,22 @@
 FROM eclipse-temurin:17-jdk AS build
-WORKDIR /workspace
+WORKDIR /repo
 
-COPY mvnw .
-RUN chmod +x mvnw
+COPY mvnw mvnw
 COPY .mvn .mvn
-COPY pom.xml .
-RUN ./mvnw -q -DskipTests dependency:go-offline
+RUN chmod +x mvnw
+COPY pom.xml pom.xml
+COPY services/core/pom.xml services/core/pom.xml
+COPY services/api/pom.xml services/api/pom.xml
 
+RUN ./mvnw -q -DskipTests -pl services/api -am dependency:go-offline
 
-COPY src src
-RUN ./mvnw -q -DskipTests package
+COPY services/core services/core
+COPY services/api services/api
+
+RUN ./mvnw -q -DskipTests -pl services/api -am package
 
 FROM eclipse-temurin:17-jre
 WORKDIR /app
-COPY --from=build /workspace/target/api-*.jar app.jar
+COPY --from=build /repo/services/api/target/api-*.jar app.jar
 EXPOSE 8080
 ENTRYPOINT ["java","-jar","app.jar"]

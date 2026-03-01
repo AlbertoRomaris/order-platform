@@ -40,14 +40,14 @@ jobs:
       - name: Build & Push API image
         run: |
           ECR="${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_API_REPO}"
-          docker build -t "${ECR}:${GITHUB_SHA}" -t "${ECR}:api-main" ./services/api
+          docker build -f services/api/Dockerfile -t "${ECR}:${GITHUB_SHA}" -t "${ECR}:api-main" .
           docker push "${ECR}:${GITHUB_SHA}"
           docker push "${ECR}:api-main"
 
       - name: Build & Push Worker image
         run: |
           ECR="${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_WORKER_REPO}"
-          docker build -t "${ECR}:${GITHUB_SHA}" -t "${ECR}:worker-main" ./services/worker
+          docker build -f services/worker/Dockerfile -t "${ECR}:${GITHUB_SHA}" -t "${ECR}:worker-main" .
           docker push "${ECR}:${GITHUB_SHA}"
           docker push "${ECR}:worker-main"
 
