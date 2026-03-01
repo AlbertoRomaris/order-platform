@@ -210,4 +210,5 @@ fully reproducible, and operationally visible.
 
 📄 Documentation:
 - [V3 – Production-like Cloud Architecture](docs/README_V3.md)
+- [V3 – AWS Operational Runbook](docs/aws-v3/RUNBOOK_V3.md)
 
