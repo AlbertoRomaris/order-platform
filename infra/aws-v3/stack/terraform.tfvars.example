@@ -1,5 +1,25 @@
 # Example terraform.tfvars file
-# Copy this to terraform.tfvars and fill in real values
+# Copy this file to terraform.tfvars and fill in real values.
+# DO NOT commit terraform.tfvars to version control.
 
+# =========================
+# Database
+# =========================
 db_password  = "CHANGE_ME"
+
+# =========================
+# Alerting
+# =========================
 alerts_email = "your_email@example.com"
+
+# =========================
+# GitHub OIDC Configuration
+# =========================
+# Format: OWNER/REPO
+github_repo = "AlbertoRomaris/order-platform"
+
+# =========================
+# Container Images (Release Tags)
+# =========================
+# These should point to the release channel tags used by CI/CD
+api_image = "123456789012.dkr.ecr.eu-west-1.amazonaws.com/order-platform-dev-v3-api:api-main"

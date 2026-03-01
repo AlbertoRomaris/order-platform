@@ -40,7 +40,7 @@ resource "aws_ecs_task_definition" "worker" {
   container_definitions = jsonencode([
     {
       name      = "worker"
-      image     = "583880312081.dkr.ecr.eu-west-1.amazonaws.com/order-platform-dev-v3-worker:v3-worker-001"
+      image = "${aws_ecr_repository.worker.repository_url}:worker-main"
       essential = true
 
       environment = [

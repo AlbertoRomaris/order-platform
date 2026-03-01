@@ -69,3 +69,8 @@ variable "api_desired_count" {
   description = "Desired number of API tasks."
   default     = 1
 }
+
+variable "github_repo" {
+  type = string
+  description = "GitHub repo in OWNER/REPO format"
+}
