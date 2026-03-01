@@ -8,6 +8,7 @@ RUN chmod +x mvnw
 COPY pom.xml pom.xml
 COPY services/core/pom.xml services/core/pom.xml
 COPY services/worker/pom.xml services/worker/pom.xml
+COPY services/api/pom.xml services/api/pom.xml
 
 RUN ./mvnw -q -DskipTests -pl services/worker -am dependency:go-offline
 
