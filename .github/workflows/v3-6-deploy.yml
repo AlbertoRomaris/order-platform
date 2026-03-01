@@ -3,6 +3,7 @@ name: V3.6 Deploy (ECR + ECS Rolling Update)
 on:
   push:
     branches: [ "main" ]
+  workflow_dispatch:
 
 permissions:
   id-token: write
